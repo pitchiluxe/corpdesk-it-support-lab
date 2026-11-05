@@ -7,7 +7,7 @@ const consoleEvents=new VirtualConsole();consoleEvents.on('jsdomError',error=>er
 const html=fs.readFileSync(path.join(root,'lab.html'),'utf8').replace(/<script\s+src="[^"]+"><\/script>/g,'').replace(/<link[^>]+>/g,'');
 const dom=new JSDOM(html,{url:'https://corpdesk.local/lab.html',runScripts:'dangerously',pretendToBeVisual:true,virtualConsole:consoleEvents,beforeParse(window){window.matchMedia=()=>({matches:false});window.confirm=()=>true;window.setInterval=()=>0;window.setTimeout=()=>0;window.HTMLElement.prototype.scrollIntoView=function(){};window.HTMLElement.prototype.setPointerCapture=function(){};}});
 const w=dom.window,d=w.document;
-for(const name of ['app','windows','desktop','lock','workflow','native-bridge','aduc','rdp','winapps']){const before=errors.length;const script=d.createElement('script');script.textContent=fs.readFileSync(path.join(root,name+'.js'),'utf8')+'\n//# sourceURL='+name+'.js';d.body.append(script);if(errors.length!==before)console.error('Boot failure in '+name+'.js',errors.at(-1).cause?.stack||errors.at(-1).detail?.stack||errors.at(-1).message);}
+for(const name of ['app','windows','desktop','lock','workflow','native-bridge','aduc','rdp','winapps','itlab']){const before=errors.length;const script=d.createElement('script');script.textContent=fs.readFileSync(path.join(root,name+'.js'),'utf8')+'\n//# sourceURL='+name+'.js';d.body.append(script);if(errors.length!==before)console.error('Boot failure in '+name+'.js',errors.at(-1).cause?.stack||errors.at(-1).detail?.stack||errors.at(-1).message);}
 if(errors.length)throw Error('Application boot produced '+errors.length+' DOM errors.');
 const api=w.CorpDesk;
 // Lock screen as in the IAM Range: clock card first, then the sign-in panel; Lock keeps the desktop's windows.
@@ -52,8 +52,24 @@ click(ad.querySelector('[data-win="close"]'));assert.equal(ad.isConnected,false,
  w.openApp('control');const cp=()=>d.querySelector('[data-app="control"] .cp');assert.match(cp().textContent,/Adjust your computer/);click([...cp().querySelectorAll('.cp-link')].find(a=>a.textContent==='Administrative Tools'));assert.match(cp().querySelector('.cp-h').textContent,/Windows Tools/);
  click(cp().querySelector('.fx-crumb'));click([...cp().querySelectorAll('.cp-link')].find(a=>a.textContent==='Mouse'));assert.ok(d.querySelector('.mm-dlg'),'Mouse Properties opens');click([...d.querySelectorAll('.mm-dlg .mm-btn')].find(b=>b.textContent==='Cancel'));
  for(const id of ['taskmanager','control'])click(d.querySelector(`[data-app="${id}"] [data-win="close"]`));checkErrors('Calculator, Task Manager, Control Panel');}
+// IT support lab: Windows 11 Start, dark mode, and the real-world labs' acceptance checks (including wrong answers).
+{const live=()=>w.eval('state');
+ click(d.querySelector('#startButton'));const start=d.querySelector('#startMenu');assert.ok(!start.classList.contains('hidden'),'Start opens');assert.ok(start.querySelector('.st-grid [data-open="outlook"]'),'Start pins the new tools');
+ const search=start.querySelector('#appSearch');search.value='entra';search.dispatchEvent(new w.Event('input'));assert.match(start.querySelector('.st-best').textContent,/Entra/);click(d.querySelector('#startButton'));
+ click(d.querySelector('.ia-theme-toggle'));assert.equal(d.documentElement.dataset.theme,'dark','tray toggle turns on dark mode');click(d.querySelector('.ia-theme-toggle'));assert.equal(d.documentElement.dataset.theme,'light');
+ const resolve=id=>{live().notes[id]='Verified fix with the user and recorded the approval on the ticket.';w.eval('resolveTicket')(w.eval('tickets').find(t=>t.id===id));return live().statuses[id];};
+ const ev=k=>w.eval('evidence')(k);
+ api.openTicket(12);w.eval('startIncident')(12);assert.equal(live().active,12,'LAB-012 starts');ev('mailbox-approval');
+ const hr=live().itlab.mailboxes.find(m=>m.address==='hr@corp.example.test');hr.fullAccess.push('hr02','hr03');hr.sendAs.push('hr02');assert.notEqual(resolve(12),'Resolved','granting someone not approved fails least privilege');
+ hr.fullAccess=hr.fullAccess.filter(x=>x!=='hr03');assert.equal(resolve(12),'Resolved','exactly the approved access resolves');
+ w.eval('startIncident')(10);ev('verify');ev('bitlocker-view');live().itlab.verified.hr04=new Date(Date.now()+1000).toISOString();const dev=live().itlab.devices.find(x=>x.name==='HR-PC04');assert.equal(dev.keys.length,2,'the device has an old and a new key');
+ const shown=w.eval('tickets').find(t=>t.id===10).summary.match(/ID: ([0-9A-F]{8})/)[1];const wrong=dev.keys.find(k=>!k.id.startsWith(shown)),right=dev.keys.find(k=>k.id.startsWith(shown));live().itlab.bitlockerProvided['HR-PC04']=wrong.key;ev('bitlocker-provided');assert.notEqual(resolve(10),'Resolved','the wrong recovery key fails');
+ live().itlab.bitlockerProvided['HR-PC04']=right.key;assert.equal(resolve(10),'Resolved','the key matching the Key ID resolves');
+ w.eval('startIncident')(8);assert.equal(live().services.find(x=>x.Name==='Spooler').Status,'Stopped','LAB-008 stops the spooler');assert.equal(w.runCommand('Get-PrintJob -PrinterName HR-PRN01').error,true,'print jobs are unreachable while the spooler is down');
+ assert.equal(w.runCommand('Start-Service -Name Spooler').error,false);assert.equal(w.runCommand('Remove-PrintJob -PrinterName HR-PRN01 -ID 41').error,false);w.runCommand('Print-TestPage HR-PRN01');assert.equal(resolve(8),'Resolved','spooler, bad job and test page resolve LAB-008');
+ checkErrors('IT support lab');}
 api.openApp('terminal');const terminal=d.querySelector('[data-app="terminal"]');click(terminal.querySelector('[data-win="close"]'));assert.equal(terminal.isConnected,false,'PowerShell X closes its session');
 checkErrors('window close/reopen');
 context(d.querySelector('.taskbar'));assert.match([...d.querySelectorAll('[role="menu"]')].at(-1).textContent,/Task Manager/);checkErrors('taskbar menu');
-console.log('PASS: full HTML boot, desktop right-click, Explorer layout and context menu, ADUC console tree New OU submenu and every console change path, Remote Desktop sign-in verification and sessions, Calculator/Task Manager/Control Panel, and real close-button click/reopen event sequences.');
+console.log('PASS: full HTML boot, desktop right-click, Explorer layout and context menu, ADUC console tree New OU submenu and every console change path, Remote Desktop sign-in verification and sessions, Calculator/Task Manager/Control Panel, Windows 11 Start and dark mode, real-world lab acceptance checks (right and wrong answers), and real close-button click/reopen event sequences.');
 dom.window.close();

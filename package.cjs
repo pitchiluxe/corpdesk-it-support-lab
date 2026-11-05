@@ -3,11 +3,11 @@ const fs=require('node:fs');
 const path=require('node:path');
 const root=__dirname;
 let html=fs.readFileSync(path.join(root,'dist/lab.html'),'utf8');
-for (const name of ['style','windows','desktop','workflow','rdp','lock','winapps']) {
+for (const name of ['style','windows','desktop','workflow','rdp','lock','winapps','itlab']) {
   const css=fs.readFileSync(path.join(root,'dist',name+'.css'),'utf8').replace(/^@import[^;]+;\s*/gm,'');
   html=html.replace('<link rel="stylesheet" href="'+name+'.css">',()=>'<style>'+css+'</style>');
 }
-for (const name of ['app','windows','desktop','lock','workflow','native-bridge','aduc','rdp','winapps']) {
+for (const name of ['app','windows','desktop','lock','workflow','native-bridge','aduc','rdp','winapps','itlab']) {
   const js=fs.readFileSync(path.join(root,'dist',name+'.js'),'utf8');
   html=html.replace('<script src="'+name+'.js"></script>',()=>'<script>'+js.replace(/<\/script/gi,'<\\/script')+'</script>');
 }

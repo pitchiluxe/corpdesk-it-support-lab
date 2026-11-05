@@ -35,7 +35,7 @@ function user(sam){return state.users.find(u=>u.sam.toLowerCase()===String(sam).
 function completed(){return tickets.filter(t=>state.statuses[t.id]==='Resolved').length;}
 function icon(a){return `<span class="app-icon" style="--iconbg:${a.bg};--iconcolor:${a.fg}">${a.icon}</span>`;}
 function toast(message){$('#toast').textContent=message;$('#toast').classList.remove('hidden');clearTimeout(toast.timer);toast.timer=setTimeout(()=>$('#toast').classList.add('hidden'),4500);}
-function updateStats(){ $('#completedCount').textContent=`${completed()} / 5`;$('#scoreCount').textContent=Object.values(state.evidence).reduce((a,b)=>a+b.length,0); }
+function updateStats(){ $('#completedCount').textContent=`${completed()} / ${tickets.length}`;$('#scoreCount').textContent=Object.values(state.evidence).reduce((a,b)=>a+b.length,0); }
 function appButton(a,where){return `<button data-open="${a.id}" ${where==='desktop'?'class="desktop-icon"':''} title="${a.name}">${icon(a)}${where==='task'?'':`<span>${a.short}</span>`}</button>`;}
 $('#desktopIcons').innerHTML=apps.map(a=>appButton(a,'desktop')).join('');
 $('#startApps').innerHTML=apps.map(a=>appButton(a,'start')).join('');
