@@ -1,0 +1,12 @@
+.build/
+windows-app/bin/
+windows-app/obj/
+windows-app/publish/
+windows-app/*.user
+node_modules/
+desktop-smoke.json
+*.log
+.env
+.DS_Store
+Thumbs.db
+dist/downloads/*.exe

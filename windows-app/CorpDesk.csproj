@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType><TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>
+    <TargetPlatformMoniker>Windows,Version=7.0</TargetPlatformMoniker><TargetPlatformDisplayName>Windows</TargetPlatformDisplayName>
+    <AssemblyName>CorpDesk</AssemblyName><RootNamespace>CorpDesk</RootNamespace>
+    <Version>1.0.0</Version><Product>CORP Desk IT Support Lab</Product><Company>Pitchiluxe</Company>
+    <Authors>Erick Omari</Authors><Copyright>Created by Erick Omari</Copyright>
+    <ApplicationIcon>../dist/assets/corpdesk.ico</ApplicationIcon>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier><SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile><IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile><PublishTrimmed>false</PublishTrimmed>
+  </PropertyGroup>
+  <ItemGroup><PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4314.35" /></ItemGroup>
+  <ItemGroup><Content Include="../dist/**/*" Exclude="../dist/downloads/**/*"><Link>wwwroot/%(RecursiveDir)%(Filename)%(Extension)</Link><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory><ExcludeFromSingleFile>true</ExcludeFromSingleFile></Content></ItemGroup>
+  <Target Name="RemoveUnusedWpfReference" BeforeTargets="ResolveAssemblyReferences"><ItemGroup><Reference Remove="@(Reference)" Condition="'%(Reference.Filename)' == 'Microsoft.Web.WebView2.Wpf'" /></ItemGroup></Target>
+</Project>

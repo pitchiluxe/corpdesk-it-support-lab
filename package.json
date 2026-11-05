@@ -1,0 +1,13 @@
+{
+  "name": "corpdesk-it-support-lab",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A Windows-style IT support practice lab created by Erick Omari",
+  "author": "Erick Omari",
+  "scripts": {
+    "test": "node verify.cjs && node verify-server.cjs && node verify-dom.cjs && node verify-landing.cjs",
+    "package": "node package.cjs",
+    "start": "node server.cjs"
+  },
+  "devDependencies": { "jsdom": "31.0.0" }
+}

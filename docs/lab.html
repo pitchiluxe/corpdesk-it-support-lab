@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CORP Desk — IT Training Workstation</title>
+<meta name="description" content="A local Windows-style desktop for practicing IT support, identity management, and incident diagnosis.">
+<link rel="icon" href="assets/corpdesk.ico">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="windows.css">
+<link rel="stylesheet" href="desktop.css">
+<link rel="stylesheet" href="workflow.css">
+</head>
+<body>
+<section id="login" class="login-screen">
+  <div class="login-clock"><div id="lockTime"></div><p id="lockDate"></p></div>
+  <form id="loginForm" class="login-card">
+    <div class="avatar">EK</div><h1>Welcome back, Erick</h1><p class="muted">CORP · Service Desk Technician</p>
+    <label for="technician">Your display name</label><input id="technician" value="Erick" maxlength="40" autocomplete="off" required>
+    <button class="primary" type="submit">Sign in <span>→</span></button>
+    <small>Training profile · No password required</small>
+  </form>
+  <div class="login-footer"><a href="index.html" style="color:inherit;text-decoration:none">← Lab overview</a><span>Created by Erick Omari · Local training simulator</span></div>
+</section>
+<main id="desktop" class="desktop hidden">
+  <div class="wallpaper-art" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+  <header class="desktop-heading"><span class="brand-mark">◈</span><div><strong>CORP DESK</strong><span>IT OPERATIONS WORKSPACE</span></div><div class="session-badge"><i></i> LAB-PC01 <span>•</span> CORP\<span id="sessionName">erick</span></div></header>
+  <nav id="desktopIcons" class="desktop-icons" aria-label="Desktop applications"></nav>
+  <aside class="desktop-widget"><div class="eyebrow">YOUR TRAINING ENVIRONMENT</div><h2>A little practice.<br>A lot of possibility.</h2><p>A safe place to diagnose, fix, and build confidence.</p><div class="widget-stats"><span><b id="completedCount">0 / 5</b>INCIDENTS RESOLVED</span><span><b id="scoreCount">0</b>EVIDENCE CHECKS</span></div><button id="continueBtn">Continue your lab <span>↗</span></button><div class="widget-bottom"><span class="green-dot"></span> All changes stay in this browser</div></aside>
+  <section id="appWindow" class="app-window hidden" aria-label="Application window">
+    <header id="titlebar" class="titlebar"><div id="windowTitle"></div><div class="window-controls"><button id="minimize" aria-label="Minimize">—</button><button id="maximize" aria-label="Maximize">□</button><button id="closeWindow" aria-label="Close">×</button></div></header>
+    <div id="appBody" class="app-body"></div>
+  </section>
+  <section id="startMenu" class="start-menu hidden" aria-label="Start menu"><input id="appSearch" placeholder="Search apps and lab tools" aria-label="Search apps"><div class="start-label">Pinned applications</div><div id="startApps"></div><footer><span id="startUser">Erick · Technician</span><button id="signOut">Sign out ⏻</button></footer></section>
+  <div id="toast" role="status" class="toast hidden"></div>
+  <footer class="taskbar"><div class="taskbar-left">LAB <span>SIMULATOR</span></div><div class="taskbar-center"><button id="startButton" class="start-button" aria-label="Open Start menu"><span></span><span></span><span></span><span></span></button><button id="searchButton" aria-label="Search applications">⌕</button><div class="task-separator"></div><div id="taskApps"></div></div><div class="system-tray"><span title="Simulated connection">▥</span><span title="Audio status">♬</span><button id="clockButton" aria-label="Show date and time"><span id="trayTime"></span><small id="trayDate"></small></button><button id="fullscreen" aria-label="Toggle full screen">⛶</button></div></footer>
+</main>
+<script src="app.js"></script>
+<script src="windows.js"></script>
+<script src="desktop.js"></script>
+<script src="workflow.js"></script>
+<script src="native-bridge.js"></script>
+</body></html>
