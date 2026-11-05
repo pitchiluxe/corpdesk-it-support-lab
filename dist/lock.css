@@ -1,0 +1,51 @@
+/* Lock and sign-in screen, as the Meridian IAM Range draws it (src/shell.css "lock screen and sign-in"). */
+.lk{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;overflow:hidden;color:#fff;font-family:'Segoe UI',sans-serif;outline:none;background:linear-gradient(150deg,#0b3a5e 0%,#123f63 40%,#0e2438 100%)}
+.lk.hidden{display:none}
+.lk-graph{position:absolute;inset:-6%;pointer-events:none;opacity:.22;animation:lkDrift 40s ease-in-out infinite alternate}
+.lk-graph svg{width:100%;height:100%;display:block}
+.lk-graph path{stroke:rgba(255,255,255,.55);stroke-width:.09;fill:none;stroke-dasharray:120;stroke-dashoffset:120;animation:lkTrace 2.8s ease-out forwards}
+.lk-graph .node{fill:rgba(255,255,255,.8);animation:lkPulse 4.5s ease-in-out infinite}
+.lk-graph .hub-ring{fill:none;stroke:rgba(255,255,255,.6);stroke-width:.12}.lk-graph .hub{fill:rgba(255,255,255,.9)}
+@keyframes lkDrift{to{transform:translate3d(-2.5%,-1.5%,0) scale(1.06)}}
+@keyframes lkTrace{to{stroke-dashoffset:0}}
+@keyframes lkPulse{0%,100%{opacity:.3;r:.7}50%{opacity:.75;r:1}}
+@keyframes lkRise{from{opacity:0;transform:translateY(14px)}}
+@keyframes lkPanel{from{opacity:0;transform:translateY(18px) scale(.985)}}
+.lk-glass{position:relative;z-index:1;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);backdrop-filter:blur(26px) saturate(140%);box-shadow:0 18px 50px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.22)}
+.lk-glass[hidden]{display:none}
+.lk-pill{position:absolute;z-index:1;padding:7px 14px;border-radius:999px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.16);backdrop-filter:blur(18px);color:#fff}
+.lk-brand{top:24px;left:26px;font-size:13px;font-weight:600;letter-spacing:.6px}
+.lk-web{bottom:22px;left:26px;font-size:11.5px;text-decoration:none;opacity:.85}.lk-web:hover{opacity:1;background:rgba(255,255,255,.16)}
+.lk-author{bottom:22px;right:26px;font-size:11px;opacity:.8;letter-spacing:.3px}
+.lk-clock{padding:34px 56px 30px;border-radius:16px;text-align:center;user-select:none;cursor:pointer;text-shadow:0 2px 18px rgba(0,0,0,.35);animation:lkRise 620ms cubic-bezier(.2,.7,.3,1) both}
+.lk-time{font-size:66px;font-weight:200;letter-spacing:.5px;line-height:1;font-variant-numeric:tabular-nums}
+.lk-date{font-size:16px;margin:8px 0 0;opacity:.85;letter-spacing:.6px}
+.lk-hint{margin-top:22px;padding-top:16px;font-size:12.5px;opacity:.65;border-top:1px solid rgba(255,255,255,.14)}
+.lk-panel{top:-4vh;width:min(360px,calc(100vw - 32px));padding:30px 26px 24px;border-radius:14px;text-align:center}
+.lk-panel.lk-in{animation:lkPanel 420ms cubic-bezier(.2,.7,.3,1) both}
+.lk-avatar{width:104px;height:104px;margin:0 auto 16px;display:grid;place-items:center;border-radius:50%;background:linear-gradient(145deg,rgba(96,205,255,.45),rgba(0,95,184,.55));border:1px solid rgba(255,255,255,.25);font-size:38px;font-weight:300}
+.lk-name{font-size:22px;margin-bottom:4px}
+.lk-upn{font-size:12px;opacity:.7;margin-bottom:18px}
+.lk-form{display:grid;gap:6px;text-align:left}
+.lk-label{font-size:12px;opacity:.8}
+.lk-input{width:100%;padding:9px 12px;border-radius:6px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.28);color:#fff;font:13px 'Segoe UI',sans-serif;outline:none;transition:border-color 140ms,background 140ms}
+.lk-input:focus{background:rgba(255,255,255,.2);border-color:rgba(255,255,255,.55)}
+.lk-btn{width:100%;margin-top:10px;padding:9px;border:0;border-radius:6px;background:#0e639c;color:#fff;font:600 13px 'Segoe UI',sans-serif;cursor:pointer;transition:filter 140ms,transform 90ms}
+.lk-btn:hover{filter:brightness(1.12)}.lk-btn:active{transform:translateY(1px)}
+.lk-cred{margin-top:14px;padding:8px 10px;border-radius:6px;background:rgba(0,0,0,.18);font-size:12px;opacity:.92}
+.lk-domain{margin-top:10px;font-size:11.5px;opacity:.6}
+@media (prefers-reduced-motion:reduce){.lk-graph,.lk-graph path,.lk-graph .node,.lk-clock,.lk-panel{animation:none!important}.lk-graph path{stroke-dashoffset:0}}
+@media (max-width:600px){.lk-time{font-size:48px}.lk-clock{padding:26px 30px}.lk-author{display:none}}
+/* Settings > Personalization > Lock screen */
+.lk-preview{position:relative;height:170px;max-width:320px;border-radius:8px;margin-bottom:16px;box-shadow:0 2px 10px rgba(0,0,0,.18);overflow:hidden}
+.lk-preview-time{position:absolute;left:0;right:0;top:40%;text-align:center;color:#fff;font-size:30px;font-weight:200;text-shadow:0 2px 12px rgba(0,0,0,.4)}
+.lk-settings-group{background:#fff;border:1px solid #e5e5e5;border-radius:6px;padding:14px 16px;margin-bottom:8px}
+.lk-settings-group h3{margin:0 0 10px;font-size:13px;font-weight:600}
+.lk-pics{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px}
+.lk-pic{aspect-ratio:16/10;border-radius:5px;border:2px solid transparent;cursor:pointer;box-shadow:inset 0 0 0 1px rgba(0,0,0,.1)}
+.lk-pic:hover{border-color:#99c4ec}.lk-pic.on{border-color:var(--accent,#0067c0);box-shadow:0 0 0 2px #fff inset}
+.lk-settings-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px}
+.lk-settings-note{font-size:11.5px;color:#666}
+.settings-dark .lk-settings-group{background:#2b2b2b;border-color:#3a3a3a;color:#eee}
+.lk-avatar{overflow:hidden;cursor:pointer}.lk-avatar img{width:100%;height:100%;object-fit:cover;display:block}
+.lk .lk-avatar{color:#fff!important;font-size:38px!important;font-weight:300!important;width:104px!important;height:104px!important;margin:0 auto 16px!important}

@@ -1,0 +1,34 @@
+/* Remote Desktop Connection, styled after the Meridian IAM Range (src/shell.css .rdp-*, .lk-*). */
+.rdp{height:100%;display:flex;flex-direction:column;background:#f3f3f3;color:#1b1b1b;font-family:'Segoe UI',sans-serif}
+.rdp .muted{color:#5d5d5d}
+.rdp-connect{display:grid;gap:14px;align-content:start;width:min(520px,100%);margin:0 auto;padding:24px 16px;overflow:auto}
+.rdp-brand{display:flex;align-items:center;gap:12px}.rdp-brand div{display:grid;line-height:1.15}.rdp-brand span{font-size:13px;color:#555}.rdp-brand strong{font-size:22px;font-weight:600}
+.rdp-card{display:grid;gap:8px;padding:16px;border:1px solid #dcdcdc;border-radius:8px;background:#fff}.rdp-card h3{margin:0;font-size:14.5px}.rdp-card p{margin:0;font-size:13px}
+.rdp-field{display:grid;gap:4px;font-size:12.5px}
+.rdp-input{width:100%;height:30px;padding:4px 8px;border:1px solid #c8c8c8;border-radius:4px;background:#fff;font:13px 'Segoe UI',sans-serif;color:#1b1b1b}
+.rdp-input[readonly]{background:#f6f6f6}
+.rdp-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:4px}
+.rdp-actions button{min-width:80px;height:30px;padding:0 14px;border-radius:4px;font:13px 'Segoe UI',sans-serif}
+.rdp-actions button[disabled]{opacity:.5}
+.rdp-center{flex:1;display:grid;place-items:center;padding:16px}
+.rdp-dialog{width:min(400px,100%);border-radius:8px;overflow:hidden;background:#fff;box-shadow:0 16px 40px rgba(0,0,0,.25)}
+.rdp-dialog-title{padding:9px 14px;background:#f3f3f3;font-size:12px;border-bottom:1px solid #e5e5e5}
+.rdp-dialog-body{display:grid;gap:10px;padding:16px 18px;font-size:13px}.rdp-dialog-body h3{margin:0;font-size:15px}.rdp-dialog-body p{margin:0}
+.rdp-error{color:#a4262c;margin:0}
+.rdp-remote-login{flex:1;display:grid;place-items:center;align-content:center;gap:14px;background:linear-gradient(150deg,#0b3a5e 0%,#123f63 40%,#0e2438 100%);color:#fff;padding:16px}
+.rdp-conn{font-size:12.5px;opacity:.8}
+.rdp-glass{width:min(360px,calc(100% - 32px));padding:30px 26px 24px;border-radius:14px;text-align:center;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);backdrop-filter:blur(26px) saturate(140%);box-shadow:0 18px 50px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.22)}
+.rdp-avatar{width:84px;height:84px;margin:0 auto 16px;display:grid;place-items:center;border-radius:50%;background:linear-gradient(145deg,rgba(96,205,255,.45),rgba(0,95,184,.55));border:1px solid rgba(255,255,255,.25);font-size:30px}
+.rdp-name{font-size:22px;margin-bottom:4px}.rdp-upn{font-size:12px;opacity:.7;margin:0 0 18px}
+.rdp-login-fields{display:grid;gap:8px}
+.rdp-glass-input{width:100%;padding:9px 12px;border-radius:6px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.28);color:#fff;font:13px 'Segoe UI',sans-serif;outline:none}
+.rdp-glass-input::placeholder{color:rgba(255,255,255,.6)}.rdp-glass-input:focus{background:rgba(255,255,255,.2);border-color:rgba(255,255,255,.55)}
+.rdp-msg{min-height:22px;margin:8px 0 6px;font-size:12.5px;color:#ffd0d0}
+.rdp-glass-btn{width:100%;margin-top:4px;padding:9px;border:0;border-radius:6px;background:#0e639c;color:#fff;font:600 13px 'Segoe UI',sans-serif}.rdp-glass-btn:hover{filter:brightness(1.12)}
+.rdp-cancel{margin-top:10px;border:0;background:none;color:#fff;opacity:.8;font-size:12.5px}.rdp-cancel:hover{opacity:1;text-decoration:underline}
+.rdp-session{flex:1;min-height:0;display:grid;grid-template-rows:auto 1fr;background:#0b1a2c}
+.rdp-bar{justify-self:center;display:flex;align-items:center;gap:10px;max-width:calc(100% - 24px);padding:3px 6px 3px 14px;border-radius:0 0 6px 6px;background:#e8eef6;color:#1b1b1b;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.35)}
+.rdp-bar-who{flex:1;margin:0 10px;opacity:.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rdp-bar-btn{width:26px;height:22px;border:0;border-radius:3px;background:transparent;font-size:11px}.rdp-bar-btn:hover{background:#c42b1c;color:#fff}
+.rdp-bar-btn.rdp-bar-text{width:auto;padding:0 10px;font-size:12px}.rdp-bar-btn.rdp-bar-text:hover{background:#d5deea;color:#1b1b1b}
+.rdp-remote{display:block;width:100%;height:100%;border:0;background:#000}

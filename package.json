@@ -7,7 +7,14 @@
   "scripts": {
     "test": "node verify.cjs && node verify-server.cjs && node verify-dom.cjs && node verify-landing.cjs",
     "package": "node package.cjs",
-    "start": "node server.cjs"
+    "start": "node server.cjs",
+    "build:aduc": "esbuild aduc/entry.ts --bundle --format=iife --target=es2020 --charset=utf8 --outfile=dist/aduc.js",
+    "build:lock": "esbuild lock/lockscreen.ts --bundle --format=iife --target=es2020 --charset=utf8 --outfile=dist/lock.js",
+    "build:winapps": "esbuild winapps/host.ts --bundle --format=iife --target=es2020 --charset=utf8 --outfile=dist/winapps.js",
+    "build:winapps-css": "node winapps/build-css.cjs \"../../Senior IAM Engineer Mentor & Lab Instructor/range/src\""
   },
-  "devDependencies": { "jsdom": "31.0.0" }
+  "devDependencies": {
+    "esbuild": "0.25.0",
+    "jsdom": "31.0.0"
+  }
 }

@@ -5,8 +5,11 @@ const root = path.join(__dirname,'dist');
 const allowed = {'/':'index.html','/index.html':'index.html','/style.css':'style.css','/app.js':'app.js','/windows.css':'windows.css','/windows.js':'windows.js','/desktop.css':'desktop.css','/desktop.js':'desktop.js'};
 const mime={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8'};
 allowed['/workflow.css']='workflow.css';allowed['/workflow.js']='workflow.js';
-Object.assign(allowed,{'/lab.html':'lab.html','/landing.css':'landing.css','/landing.js':'landing.js','/native-bridge.js':'native-bridge.js','/assets/corpdesk.png':'assets/corpdesk.png','/assets/corpdesk.ico':'assets/corpdesk.ico','/downloads/CORP-Desk-Setup.exe':'downloads/CORP-Desk-Setup.exe','/downloads/release.json':'downloads/release.json'});
-Object.assign(mime,{'.png':'image/png','.ico':'image/x-icon','.json':'application/json','.exe':'application/octet-stream'});
+Object.assign(allowed,{'/lab.html':'lab.html','/landing.css':'landing.css','/landing.js':'landing.js','/native-bridge.js':'native-bridge.js','/aduc.js':'aduc.js','/assets/corpdesk.png':'assets/corpdesk.png','/assets/corpdesk.ico':'assets/corpdesk.ico','/downloads/CORP-Desk-Setup.exe':'downloads/CORP-Desk-Setup.exe','/downloads/release.json':'downloads/release.json'});
+Object.assign(mime,{'.png':'image/png','.ico':'image/x-icon','.json':'application/json','.exe':'application/octet-stream','.svg':'image/svg+xml','.webp':'image/webp'});
+Object.assign(allowed,{'/rdp.js':'rdp.js','/rdp.css':'rdp.css','/lock.js':'lock.js','/winapps.js':'winapps.js','/winapps.css':'winapps.css','/lock.css':'lock.css','/wallpapers/blue-shield.webp':'wallpapers/blue-shield.webp','/wallpapers/network-constellation.webp':'wallpapers/network-constellation.webp','/wallpapers/emerald-core.webp':'wallpapers/emerald-core.webp'});
+// The remote workstation Remote Desktop shows: every file shipped in dist/remote-pc, listed once at startup.
+(function addRemotePc(dir,prefix){try{for(const entry of fs.readdirSync(path.join(root,dir),{withFileTypes:true})){const rel=dir+'/'+entry.name;if(entry.isDirectory())addRemotePc(rel);else if(mime[path.extname(entry.name)])allowed['/'+rel]=rel;}}catch{}})('remote-pc');
 function createHandler(ollamaFetch=fetch){return async(req,res)=>{
   let pathname;try{pathname=new URL(req.url,'http://localhost').pathname;}catch{res.writeHead(400);res.end('Bad request');return;}
   if(pathname.startsWith('/api/')){

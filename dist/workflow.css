@@ -33,3 +33,7 @@
 .mmc .mmc-object-icon{width:16px!important;height:16px!important;min-width:16px!important;margin:0 6px 0 0!important}
 .mmc .mmc-object-icon svg{width:16px;height:16px}
 .mmc .mmc-tree{overflow-x:hidden}
+/* Desktop icons (default/medium size): fill columns top to bottom like Windows, with room for two-line labels. */
+.desktop-icons:not(.icons-small):not(.icons-large):not(.free-icons){grid-auto-flow:column;grid-template-columns:none;grid-auto-columns:86px;grid-template-rows:repeat(auto-fill,96px);grid-auto-rows:96px;gap:8px 10px;width:auto;max-width:calc(100% - 24px)}
+.desktop-icons:not(.icons-small):not(.icons-large) .desktop-icon{height:96px;min-height:96px;max-height:96px;padding:8px 4px;gap:7px}
+.desktop-icon>span:last-child{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;max-width:100%}
