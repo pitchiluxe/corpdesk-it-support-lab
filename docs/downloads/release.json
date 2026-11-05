@@ -1,8 +1,8 @@
 {
-  "sizeMB": 45.9,
-  "version": "1.0.1",
-  "platform": "windows-x64",
+  "file": "CORP-Desk-Setup.exe",
   "signed": false,
-  "sha256": "ac338fb0932e38532497c8e86eb0002f02570faa6f50a2ff5aa1d69f70c0f3a3",
-  "file": "CORP-Desk-Setup.exe"
+  "platform": "windows-x64",
+  "sha256": "8b6f1ada4769f064749e33f9248220bb4dac41a7923efcdb3f808705676e8f82",
+  "version": "1.0.2",
+  "sizeMB": 45.9
 }
