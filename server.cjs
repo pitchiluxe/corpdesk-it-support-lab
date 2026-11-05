@@ -11,7 +11,8 @@ function createHandler(ollamaFetch=fetch){return async(req,res)=>{
   let pathname;try{pathname=new URL(req.url,'http://localhost').pathname;}catch{res.writeHead(400);res.end('Bad request');return;}
   if(pathname.startsWith('/api/')){
     const origin=req.headers.origin;
-    const origins=new Set(['null','http://127.0.0.1:8765','http://localhost:8765']);
+    // The hosted copy on Vercel may also call this local server; Host must still be loopback.
+    const origins=new Set(['null','http://127.0.0.1:8765','http://localhost:8765','https://corpdesk-it-support-lab.vercel.app']);
     if(!['127.0.0.1:8765','localhost:8765'].includes(req.headers.host)||origin&&!origins.has(origin)){res.writeHead(403);res.end('Local training requests only');return;}
     const cors=origin?{'Access-Control-Allow-Origin':origin,'Vary':'Origin'}:{};
     const json=(status,data)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store',...cors});res.end(JSON.stringify(data));};
