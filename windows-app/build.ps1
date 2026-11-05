@@ -1,3 +1,4 @@
+param([ValidatePattern('^\d+\.\d+\.\d+$')][string]$Version='1.0.0')
 $ErrorActionPreference = 'Stop'
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 Push-Location $projectRoot
@@ -9,15 +10,16 @@ try {
     & (Join-Path $PSScriptRoot 'build-icon.ps1')
     dotnet restore (Join-Path $PSScriptRoot 'CorpDesk.csproj') --packages (Join-Path $projectRoot '.build\nuget')
     if ($LASTEXITCODE -ne 0) {throw 'Dependency restore failed.'}
-    dotnet publish (Join-Path $PSScriptRoot 'CorpDesk.csproj') -c Release -o (Join-Path $PSScriptRoot 'publish') --no-restore
+    dotnet publish (Join-Path $PSScriptRoot 'CorpDesk.csproj') -c Release -o (Join-Path $PSScriptRoot 'publish') --no-restore "-p:Version=$Version"
     if ($LASTEXITCODE -ne 0) {throw 'Windows app build failed.'}
     $compiler = 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
     if (-not (Test-Path -LiteralPath $compiler)) {throw 'Install Inno Setup 6, then rerun this build.'}
-    & $compiler (Join-Path $PSScriptRoot 'setup.iss')
+    & $compiler "/DAppVersion=$Version" (Join-Path $PSScriptRoot 'setup.iss')
     if ($LASTEXITCODE -ne 0) {throw 'Installer build failed.'}
     $installer = Get-Item -LiteralPath (Join-Path $projectRoot 'dist\downloads\CORP-Desk-Setup.exe')
     $hash = Get-FileHash -LiteralPath $installer.FullName -Algorithm SHA256
-    @{version='1.0.0';platform='windows-x64';sizeMB=[math]::Round($installer.Length/1MB,1);sha256=$hash.Hash.ToLowerInvariant();file=$installer.Name;signed=$false} |
+    @{version=$Version;platform='windows-x64';sizeMB=[math]::Round($installer.Length/1MB,1);sha256=$hash.Hash.ToLowerInvariant();file=$installer.Name;signed=$false} |
         ConvertTo-Json | Set-Content -LiteralPath (Join-Path $projectRoot 'dist\downloads\release.json')
+    ($hash.Hash.ToLowerInvariant()+'  '+$installer.Name) | Set-Content -LiteralPath (Join-Path $projectRoot 'dist\downloads\SHA256SUMS.txt')
     node package.cjs
 } finally {Pop-Location}
