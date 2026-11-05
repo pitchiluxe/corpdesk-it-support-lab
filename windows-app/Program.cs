@@ -53,15 +53,13 @@ internal sealed class LabWindow : Form
     })();
     """;
     private readonly LocalServices host;private readonly WebView2 web=new(){Dock=DockStyle.Fill};
-    private readonly ToolStripStatusLabel status=new("Local lab · Checking Ollama…");
     private readonly System.Windows.Forms.Timer poll=new(){Interval=15000};
     private BrowserWindow? browser;private bool probing;
     internal LabWindow(LocalServices host)
     {
         this.host=host;Text="CORP Desk — IT Support Practice Lab";Icon=Program.GetIcon();Size=new Size(1380,900);MinimumSize=new Size(800,600);StartPosition=FormStartPosition.CenterScreen;
-        var strip=new StatusStrip{SizingGrip=false,BackColor=Color.FromArgb(241,245,239)};strip.Items.Add(status);strip.Items.Add(new ToolStripStatusLabel("Created by Erick Omari"){Spring=true,TextAlign=ContentAlignment.MiddleRight});Controls.Add(web);Controls.Add(strip);
-        var updates=new ToolStripDropDownButton("Updates");
-        updates.DropDownItems.Add("Check for updates",null,async(_,_)=>await AppUpdater.Check(this,true));strip.Items.Add(updates);
+        // Ollama status, credit and update checks live in the lab's Settings app (dist/desktop.js).
+        Controls.Add(web);
         Shown+=async(_,_)=>{await Initialize();await AppUpdater.Check(this);};poll.Tick+=async(_,_)=>await UpdateOllama();FormClosed+=(_,_)=>{poll.Stop();poll.Dispose();browser?.Dispose();web.Dispose();};
     }
     private async Task Initialize()
@@ -77,6 +75,7 @@ internal sealed class LabWindow : Form
                 try{using var json=JsonDocument.Parse(e.WebMessageAsJson);var data=json.RootElement;var action=data.GetProperty("action").GetString();
                     if(action=="openBrowser"){var url=data.TryGetProperty("url",out var u)?u.GetString():null;OpenBrowser(url??"https://www.google.com");}
                     else if(action=="probeOllama")await UpdateOllama();
+                    else if(action=="checkUpdates")await AppUpdater.Check(this,true);
                     else if(action=="startOllama"){var installed=LocalServices.InstalledOllama();if(installed!=null)Process.Start(new ProcessStartInfo(installed){UseShellExecute=true});else MessageBox.Show(this,"Ollama was not found. Install it from ollama.com, download a local model, then retry.","Local Ollama",MessageBoxButtons.OK,MessageBoxIcon.Information);}
                     else if(action=="apiRequest"){var id=data.GetProperty("id").GetInt32();var path=data.GetProperty("path").GetString()??"";var payload=data.TryGetProperty("body",out var b)?b.GetString():null;var reply=await host.Request(path,payload);await web.CoreWebView2.ExecuteScriptAsync("window.corpNativeResult("+id+","+JsonSerializer.Serialize(reply)+");");}
                 }catch(JsonException){}catch(KeyNotFoundException){}catch(Exception){}
@@ -103,7 +102,7 @@ internal sealed class LabWindow : Form
     private async Task UpdateOllama()
     {
         if(probing||IsDisposed)return;probing=true;
-        try{var data=await host.Probe();using var json=JsonDocument.Parse(JsonSerializer.Serialize(data));var available=json.RootElement.GetProperty("available").GetBoolean();var count=json.RootElement.GetProperty("models").GetArrayLength();status.Text=available?"Local lab · Ollama detected · "+count+" downloaded model(s)":"Local lab · Ollama not running · Offline coach available";if(web.CoreWebView2!=null&&!IsDisposed)await web.CoreWebView2.ExecuteScriptAsync("window.dispatchEvent(new CustomEvent('corp-ollama',{detail:"+json.RootElement.GetRawText()+"}));");}catch{}finally{probing=false;}
+        try{var data=await host.Probe();using var json=JsonDocument.Parse(JsonSerializer.Serialize(data));if(web.CoreWebView2!=null&&!IsDisposed)await web.CoreWebView2.ExecuteScriptAsync("window.dispatchEvent(new CustomEvent('corp-ollama',{detail:"+json.RootElement.GetRawText()+"}));");}catch{}finally{probing=false;}
     }
 }
 
