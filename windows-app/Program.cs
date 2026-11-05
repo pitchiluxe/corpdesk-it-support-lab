@@ -35,13 +35,15 @@ internal static class Program
         }
         catch (Exception ex) { MessageBox.Show("CORP Desk could not start.\n\n" + ex.Message, "CORP Desk", MessageBoxButtons.OK, MessageBoxIcon.Error); }
     }
+    /// <summary>The build version (build.ps1 -Version), shown in Settings > About and sent with update checks.</summary>
+    internal static string AppVersion => typeof(Program).Assembly.GetName().Version?.ToString(3) ?? "1.0.0";
     internal static Icon? GetIcon() { var file = Path.Combine(AppContext.BaseDirectory,"wwwroot","assets","corpdesk.ico"); return File.Exists(file) ? new Icon(file) : null; }
 }
 
 internal sealed class LabWindow : Form
 {
     private const string NativeBootstrap = """
-    window.corpDesktop={isNative:true,version:'1.0.0'};
+    window.corpDesktop={isNative:true,version:'{{VERSION}}'};
     (()=>{let sequence=0;const pending=new Map();
       window.corpNativeResult=(id,reply)=>{const callback=pending.get(id);if(callback){pending.delete(id);callback(reply);}};
       const originalFetch=window.fetch.bind(window);
@@ -68,7 +70,7 @@ internal sealed class LabWindow : Form
         {
             var env=await CoreWebView2Environment.CreateAsync(null,Path.Combine(Program.DataRoot,"Profile"));await web.EnsureCoreWebView2Async(env);
             web.CoreWebView2.SetVirtualHostNameToFolderMapping("corpdesk.local",Path.Combine(AppContext.BaseDirectory,"wwwroot"),CoreWebView2HostResourceAccessKind.DenyCors);
-            await web.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(NativeBootstrap);
+            await web.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(NativeBootstrap.Replace("{{VERSION}}",Program.AppVersion));
             web.CoreWebView2.WebMessageReceived+=async(_,e)=>
             {
                 if(!e.Source.StartsWith(host.Origin+"/",StringComparison.Ordinal))return;

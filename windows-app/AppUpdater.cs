@@ -16,7 +16,7 @@ internal static class AppUpdater
         try
         {
             using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
-            http.DefaultRequestHeaders.UserAgent.ParseAdd("CORPDesk/1.0.0");
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("CORPDesk/" + Program.AppVersion);
             using var release = JsonDocument.Parse(await http.GetStringAsync($"https://api.github.com/repos/{Repository}/releases/latest"));
             var assets = release.RootElement.GetProperty("assets").EnumerateArray().ToArray();
             string Asset(string name) => assets.First(a => a.GetProperty("name").GetString() == name).GetProperty("browser_download_url").GetString()!;
