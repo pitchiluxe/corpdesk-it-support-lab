@@ -14,3 +14,22 @@
 .chrome-menu-button{min-width:28px}.browser-history-page{padding:25px 35px}.browser-history-page button{display:block;text-align:left;color:#2369aa;padding:10px;background:transparent;font-size:12px}
 .desktop-user-file .app-icon{font-size:0!important}.mouse-selection-box{position:absolute;border:1px solid #7ab6ff;background:#7ab6ff26;pointer-events:none;z-index:80}
 @media(max-width:600px){.desktop-icons.icons-large{grid-template-columns:96px;width:105px}.desktop-icons.icons-small{grid-template-columns:repeat(2,64px);width:138px}.generator-controls{flex-direction:column;align-items:stretch}.generator-controls select{max-width:none}.profile-edit{gap:10px}.profile-edit-preview{width:65px;height:65px}}
+/* Active Directory Users and Computers: compact MMC look matching the Meridian IAM Range console. */
+.mmc .mmc-toolbar{height:28px;padding:2px 6px;background:#fff;border-bottom:1px solid #e5e5e5;gap:1px}
+.mmc .mmc-toolbar button{width:24px;height:22px;display:inline-flex;align-items:center;justify-content:center;padding:0;border:1px solid transparent;border-radius:2px}
+.mmc .mmc-toolbar button svg{width:16px;height:16px;display:block}
+.mmc .mmc-toolbar .separator{height:16px;border-left:1px solid #d6d6d6;margin:0 4px}
+.mmc .mmc-menu{background:#fff;border-bottom:0;height:24px}
+.mmc .mmc-tree{border-right:1px solid #d9d9d9;padding:2px 0}
+.mmc .tree-row{height:20px;padding:0 4px;gap:3px;font-size:12px}
+.mmc .tree-row.selected{background:transparent;outline:0}
+.mmc .tree-row.selected .tree-label{background:#cce8ff;outline:1px solid #99d1ff;padding:0 3px}
+.mmc .tree-expander{width:12px;height:12px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.mmc .tree-expander svg{width:10px;height:10px}
+.mmc .tree-symbol{width:16px;height:16px;display:inline-flex;flex-shrink:0}
+.mmc .tree-symbol svg{width:16px;height:16px}
+.mmc .mmc-table th{height:24px;padding:3px 6px;font-size:12px;color:#333;border-right:1px solid #e5e5e5;border-bottom:1px solid #e5e5e5}
+.mmc .mmc-table td{height:20px;padding:0 6px!important;line-height:20px;font-size:12px}
+.mmc .mmc-object-icon{width:16px!important;height:16px!important;min-width:16px!important;margin:0 6px 0 0!important}
+.mmc .mmc-object-icon svg{width:16px;height:16px}
+.mmc .mmc-tree{overflow-x:hidden}

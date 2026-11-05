@@ -54,13 +54,13 @@ internal sealed class LabWindow : Form
     """;
     private readonly LocalServices host;private readonly WebView2 web=new(){Dock=DockStyle.Fill};
     private readonly System.Windows.Forms.Timer poll=new(){Interval=15000};
-    private BrowserWindow? browser;private bool probing;
+    private readonly WebTabs tabs;private bool probing;private string? pendingOpen;
     internal LabWindow(LocalServices host)
     {
         this.host=host;Text="CORP Desk — IT Support Practice Lab";Icon=Program.GetIcon();Size=new Size(1380,900);MinimumSize=new Size(800,600);StartPosition=FormStartPosition.CenterScreen;
         // Ollama status, credit and update checks live in the lab's Settings app (dist/desktop.js).
-        Controls.Add(web);
-        Shown+=async(_,_)=>{await Initialize();await AppUpdater.Check(this);};poll.Tick+=async(_,_)=>await UpdateOllama();FormClosed+=(_,_)=>{poll.Stop();poll.Dispose();browser?.Dispose();web.Dispose();};
+        Controls.Add(web);tabs=new WebTabs(this,SendWeb);
+        Shown+=async(_,_)=>{await Initialize();await AppUpdater.Check(this);};poll.Tick+=async(_,_)=>await UpdateOllama();FormClosed+=(_,_)=>{poll.Stop();poll.Dispose();tabs.Dispose();web.Dispose();};
     }
     private async Task Initialize()
     {
@@ -73,31 +73,33 @@ internal sealed class LabWindow : Form
             {
                 if(!e.Source.StartsWith(host.Origin+"/",StringComparison.Ordinal))return;
                 try{using var json=JsonDocument.Parse(e.WebMessageAsJson);var data=json.RootElement;var action=data.GetProperty("action").GetString();
-                    if(action=="openBrowser"){var url=data.TryGetProperty("url",out var u)?u.GetString():null;OpenBrowser(url??"https://www.google.com");}
+                    if(action=="webView")tabs.Apply(data);
+                    else if(action=="webReload")tabs.Reload(data.GetProperty("tab").GetString());
+                    else if(action=="labReady"&&pendingOpen!=null){var url=pendingOpen;pendingOpen=null;await SendWeb(JsonSerializer.Serialize(new{open=url}));}
+                    else if(action=="openBrowser"){var url=data.TryGetProperty("url",out var u)?u.GetString():null;await OpenInLab(url??"https://www.google.com");}
                     else if(action=="probeOllama")await UpdateOllama();
                     else if(action=="checkUpdates")await AppUpdater.Check(this,true);
                     else if(action=="startOllama"){var installed=LocalServices.InstalledOllama();if(installed!=null)Process.Start(new ProcessStartInfo(installed){UseShellExecute=true});else MessageBox.Show(this,"Ollama was not found. Install it from ollama.com, download a local model, then retry.","Local Ollama",MessageBoxButtons.OK,MessageBoxIcon.Information);}
                     else if(action=="apiRequest"){var id=data.GetProperty("id").GetInt32();var path=data.GetProperty("path").GetString()??"";var payload=data.TryGetProperty("body",out var b)?b.GetString():null;var reply=await host.Request(path,payload);await web.CoreWebView2.ExecuteScriptAsync("window.corpNativeResult("+id+","+JsonSerializer.Serialize(reply)+");");}
                 }catch(JsonException){}catch(KeyNotFoundException){}catch(Exception){}
             };
-            web.CoreWebView2.NavigationStarting+=(_,e)=>{if(!e.Uri.StartsWith(host.Origin+"/",StringComparison.Ordinal)&&!e.Uri.StartsWith("about:",StringComparison.Ordinal)){e.Cancel=true;if(Uri.TryCreate(e.Uri,UriKind.Absolute,out var u)&&u.Scheme is "https" or "http")OpenBrowser(e.Uri);}};
-            web.CoreWebView2.NewWindowRequested+=(_,e)=>{e.Handled=true;OpenBrowser(e.Uri);};
+            // Website links on the app's own pages never leave the app: they open as tabs of the lab's Chrome window.
+            web.CoreWebView2.NavigationStarting+=(_,e)=>{if(!e.Uri.StartsWith(host.Origin+"/",StringComparison.Ordinal)&&!e.Uri.StartsWith("about:",StringComparison.Ordinal)){e.Cancel=true;_=OpenInLab(e.Uri);}};
+            web.CoreWebView2.NewWindowRequested+=(_,e)=>{e.Handled=true;_=OpenInLab(e.Uri);};
             web.CoreWebView2.PermissionRequested+=(_,e)=>e.State=CoreWebView2PermissionState.Deny;
             web.CoreWebView2.NavigationCompleted+=async(_,_)=>await UpdateOllama();
             web.Source=new Uri(host.Origin+"/index.html");poll.Start();
         }catch(Exception ex){MessageBox.Show(this,"The desktop could not load.\n\n"+ex.Message,"CORP Desk",MessageBoxButtons.OK,MessageBoxIcon.Error);}
     }
-    private void OpenBrowser(string url)
+    private async Task SendWeb(string detail)
     {
-        if(browser==null||browser.IsDisposed)
-        {
-            browser=new BrowserWindow{TopLevel=false,ShowInTaskbar=false,StartPosition=FormStartPosition.Manual,FormBorderStyle=FormBorderStyle.Sizable};
-            var width=Math.Min(1140,ClientSize.Width-60);var height=Math.Min(750,ClientSize.Height-80);
-            browser.Bounds=new Rectangle(Math.Max(8,(ClientSize.Width-width)/2),Math.Max(8,(ClientSize.Height-height)/2-10),width,height);
-            Controls.Add(browser);browser.Show();
-        }
-        if(browser.WindowState==FormWindowState.Minimized)browser.WindowState=FormWindowState.Normal;
-        _=browser.Open(url);browser.BringToFront();
+        if(web.CoreWebView2!=null&&!IsDisposed)await web.CoreWebView2.ExecuteScriptAsync("window.dispatchEvent(new CustomEvent('corp-web',{detail:"+detail+"}));");
+    }
+    private async Task OpenInLab(string url)
+    {
+        if(!Uri.TryCreate(url,UriKind.Absolute,out var target)||target.Scheme is not ("https" or "http"))return;
+        if(web.Source?.AbsolutePath.EndsWith("/lab.html",StringComparison.OrdinalIgnoreCase)==true)await SendWeb(JsonSerializer.Serialize(new{open=target.AbsoluteUri}));
+        else{pendingOpen=target.AbsoluteUri;web.Source=new Uri(host.Origin+"/lab.html");}
     }
     private async Task UpdateOllama()
     {
@@ -106,48 +108,54 @@ internal sealed class LabWindow : Form
     }
 }
 
-internal sealed class BrowserWindow : Form
+/// <summary>
+/// Websites inside the lab's Chrome window. The page reports where its page area is on screen
+/// (or that it is hidden behind another window, menu or dialog); each Chrome tab keeps its own
+/// WebView2, laid exactly over that area, so switching tabs does not reload. Pop-ups load in the
+/// same tab and only http(s) pages are allowed, so nothing opens outside the app.
+/// </summary>
+internal sealed class WebTabs : IDisposable
 {
-    private readonly TabControl tabs=new(){Dock=DockStyle.Fill};private readonly TextBox address=new(){Dock=DockStyle.Fill,Font=new Font("Segoe UI",11),BorderStyle=BorderStyle.FixedSingle};
-    private readonly ToolStripStatusLabel status=new("Chromium / Microsoft Edge WebView2");
-    private readonly Task<CoreWebView2Environment> environment;private bool firstShown;
-    internal BrowserWindow()
+    private readonly Form owner;private readonly Func<string,Task> send;
+    private readonly Dictionary<string,WebView2> views=new();private readonly HashSet<string> pageDriven=new();
+    private readonly Task<CoreWebView2Environment> environment;
+    internal WebTabs(Form owner,Func<string,Task> send){this.owner=owner;this.send=send;environment=CoreWebView2Environment.CreateAsync(null,Path.Combine(Program.DataRoot,"Browser"));}
+    internal void Apply(JsonElement data)
     {
-        Text="CORP Desk Browser";Icon=Program.GetIcon();Size=new Size(1180,800);MinimumSize=new Size(650,480);StartPosition=FormStartPosition.CenterScreen;Font=new Font("Segoe UI",10);
-        environment=CoreWebView2Environment.CreateAsync(null,Path.Combine(Program.DataRoot,"Browser"));
-        var bar=new TableLayoutPanel{Dock=DockStyle.Top,Height=44,ColumnCount=8,Padding=new Padding(7,6,7,6),BackColor=Color.FromArgb(239,243,248)};
-        foreach(var width in new[]{36,36,36})bar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,width));bar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));foreach(var width in new[]{42,36,36,42})bar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,width));
-        Button Button(string text,Action action){var b=new Button{Text=text,Dock=DockStyle.Fill,FlatStyle=FlatStyle.Flat,Margin=new Padding(2,0,2,0)};b.FlatAppearance.BorderSize=0;b.Click+=(_,_)=>action();return b;}
-        bar.Controls.Add(Button("←",()=>{if(Current?.CoreWebView2?.CanGoBack==true)Current.GoBack();}),0,0);bar.Controls.Add(Button("→",()=>{if(Current?.CoreWebView2?.CanGoForward==true)Current.GoForward();}),1,0);bar.Controls.Add(Button("⟳",()=>Current?.Reload()),2,0);bar.Controls.Add(address,3,0);bar.Controls.Add(Button("Go",()=>NavigateAddress()),4,0);bar.Controls.Add(Button("+",()=>_ = Open("https://www.google.com")),5,0);bar.Controls.Add(Button("×",CloseTab),6,0);bar.Controls.Add(Button("↗",()=>{if(Current?.Source is Uri u)Process.Start(new ProcessStartInfo(u.AbsoluteUri){UseShellExecute=true});}),7,0);
-        var strip=new StatusStrip{SizingGrip=false};strip.Items.Add(status);Controls.Add(tabs);Controls.Add(bar);Controls.Add(strip);address.KeyDown+=(_,e)=>{if(e.KeyCode==Keys.Enter){e.SuppressKeyPress=true;NavigateAddress();}};
-        tabs.SelectedIndexChanged+=(_,_)=>{if(Current?.Source!=null)address.Text=Current.Source.AbsoluteUri;};KeyPreview=true;KeyDown+=HandleKeys;
-        var context=new ContextMenuStrip();context.Items.Add("New tab",null,(_,_)=>_ = Open("https://www.google.com"));context.Items.Add("Close tab",null,(_,_)=>CloseTab());tabs.ContextMenuStrip=context;
+        var open=data.TryGetProperty("tabs",out var list)&&list.ValueKind==JsonValueKind.Array?list.EnumerateArray().Select(x=>x.GetString()??"").ToHashSet():new HashSet<string>();
+        foreach(var id in views.Keys.Where(id=>!open.Contains(id)).ToList()){views[id].Dispose();views.Remove(id);pageDriven.Remove(id);}
+        var tab=data.TryGetProperty("visible",out var shown)&&shown.GetBoolean()?data.GetProperty("tab").GetString():null;
+        foreach(var (id,other) in views)if(id!=tab)other.Visible=false;
+        if(tab==null||!Uri.TryCreate(data.GetProperty("url").GetString(),UriKind.Absolute,out var target)||target.Scheme is not ("https" or "http"))return;
+        if(!views.TryGetValue(tab,out var view)){view=new WebView2{Visible=false};views[tab]=view;owner.Controls.Add(view);_=Start(tab,view,target.AbsoluteUri);}
+        view.Bounds=new Rectangle(data.GetProperty("x").GetInt32(),data.GetProperty("y").GetInt32(),data.GetProperty("w").GetInt32(),data.GetProperty("h").GetInt32());
+        view.Visible=true;view.BringToFront();
+        if(view.CoreWebView2!=null&&view.Source?.AbsoluteUri!=target.AbsoluteUri){pageDriven.Add(tab);view.CoreWebView2.Navigate(target.AbsoluteUri);}
     }
-    private WebView2? Current=>tabs.SelectedTab?.Controls.OfType<WebView2>().FirstOrDefault();
-    private void NavigateAddress(){var url=NormalizeAddress(address.Text);if(url!=null&&Current!=null)Current.Source=new Uri(url);}
+    internal void Reload(string? tab){if(tab!=null&&views.TryGetValue(tab,out var view))view.CoreWebView2?.Reload();}
+    private async Task Start(string tab,WebView2 view,string url)
+    {
+        try
+        {
+            await view.EnsureCoreWebView2Async(await environment);if(view.IsDisposed)return;
+            var core=view.CoreWebView2;core.Settings.IsWebMessageEnabled=false;
+            core.NavigationStarting+=(_,e)=>{if(!Uri.TryCreate(e.Uri,UriKind.Absolute,out var u)||u.Scheme is not ("https" or "http" or "about"))e.Cancel=true;};
+            core.NewWindowRequested+=(_,e)=>{e.Handled=true;if(Uri.TryCreate(e.Uri,UriKind.Absolute,out var u)&&u.Scheme is "https" or "http")core.Navigate(u.AbsoluteUri);};
+            // Address changes go back to the page's tab, which keeps the history; loads the page asked for replace the entry.
+            core.SourceChanged+=(_,_)=>_=send(JsonSerializer.Serialize(new{tab,url=core.Source,replace=pageDriven.Contains(tab)}));
+            core.NavigationCompleted+=(_,_)=>pageDriven.Remove(tab);
+            core.DocumentTitleChanged+=(_,_)=>_=send(JsonSerializer.Serialize(new{tab,title=core.DocumentTitle}));
+            core.PermissionRequested+=(_,e)=>{e.State=MessageBox.Show(owner,new Uri(e.Uri).Host+" requests "+e.PermissionKind+". Allow?","Website permission",MessageBoxButtons.YesNo,MessageBoxIcon.Question)==DialogResult.Yes?CoreWebView2PermissionState.Allow:CoreWebView2PermissionState.Deny;};
+            pageDriven.Add(tab);core.Navigate(url);
+        }catch(Exception ex){if(!view.IsDisposed)MessageBox.Show(owner,ex.Message,"Browser",MessageBoxButtons.OK,MessageBoxIcon.Error);}
+    }
     internal static string? NormalizeAddress(string input)
     {
         input=input.Trim();if(input.Length==0)return null;if(Uri.TryCreate(input,UriKind.Absolute,out var url)&&url.Scheme is "http" or "https")return url.AbsoluteUri;
         if(!input.Any(char.IsWhiteSpace)&&input.Contains('.')&&!input.Contains("://")&&Uri.TryCreate("https://"+input,UriKind.Absolute,out url))return url.AbsoluteUri;
         return "https://www.google.com/search?q="+Uri.EscapeDataString(input);
     }
-    internal async Task Open(string url)
-    {
-        var target=NormalizeAddress(url);if(target==null)return;var page=new TabPage("Loading…");var view=new WebView2{Dock=DockStyle.Fill};page.Controls.Add(view);tabs.TabPages.Add(page);tabs.SelectedTab=page;
-        try
-        {
-            await view.EnsureCoreWebView2Async(await environment);view.CoreWebView2.Settings.IsWebMessageEnabled=false;
-            view.CoreWebView2.DocumentTitleChanged+=(_,_)=>{var title=view.CoreWebView2.DocumentTitle;page.Text=title.Length>28?title[..28]+"…":title;Text=(title.Length>0?title+" — ":"")+"CORP Desk Browser";};
-            view.CoreWebView2.SourceChanged+=(_,_)=>{if(Current==view)address.Text=view.Source?.AbsoluteUri??"";};
-            view.CoreWebView2.NewWindowRequested+=(_,e)=>{e.Handled=true;_ = Open(e.Uri);};
-            view.CoreWebView2.NavigationStarting+=(_,e)=>{if(!Uri.TryCreate(e.Uri,UriKind.Absolute,out var u)||u.Scheme is not ("https" or "http" or "about"))e.Cancel=true;};
-            view.CoreWebView2.PermissionRequested+=(_,e)=>{e.State=MessageBox.Show(this,new Uri(e.Uri).Host+" requests "+e.PermissionKind+". Allow?","Website permission",MessageBoxButtons.YesNo,MessageBoxIcon.Question)==DialogResult.Yes?CoreWebView2PermissionState.Allow:CoreWebView2PermissionState.Deny;};
-            view.CoreWebView2.NavigationCompleted+=(_,e)=>{status.Text=e.IsSuccess?"Chromium / Microsoft Edge WebView2 · "+(view.Source?.Host??""):"Navigation failed: "+e.WebErrorStatus;};
-            view.Source=new Uri(target);if(!firstShown){firstShown=true;address.Text=target;}
-        }catch(Exception ex){page.Text="Unable to load";MessageBox.Show(this,ex.Message,"Browser",MessageBoxButtons.OK,MessageBoxIcon.Error);}
-    }
-    private void CloseTab(){var selected=tabs.SelectedTab;if(selected==null)return;foreach(Control c in selected.Controls)c.Dispose();tabs.TabPages.Remove(selected);selected.Dispose();if(tabs.TabPages.Count==0)Close();}
-    private void HandleKeys(object? sender,KeyEventArgs e){if(e.Control&&e.KeyCode==Keys.L){e.SuppressKeyPress=true;address.Focus();address.SelectAll();}if(e.Control&&e.KeyCode==Keys.T){e.SuppressKeyPress=true;_ = Open("https://www.google.com");}if(e.Control&&e.KeyCode==Keys.W){e.SuppressKeyPress=true;CloseTab();}if(e.KeyCode==Keys.F5){e.SuppressKeyPress=true;Current?.Reload();}if(e.Alt&&e.KeyCode==Keys.Left&&Current?.CanGoBack==true){e.SuppressKeyPress=true;Current.GoBack();}}
+    public void Dispose(){foreach(var view in views.Values)view.Dispose();views.Clear();}
 }
 
 internal static class SelfTest
@@ -157,7 +165,7 @@ internal static class SelfTest
         using var host=new LocalServices();var root=Path.Combine(AppContext.BaseDirectory,"wwwroot");
         var files=new[]{"index.html","lab.html","landing.css","landing.js","native-bridge.js","assets/corpdesk.ico"}.ToDictionary(file=>file,file=>File.Exists(Path.Combine(root,file)));
         var version=CoreWebView2Environment.GetAvailableBrowserVersionString();var ollama=await host.Probe();
-        var ok=files.Values.All(v=>v)&&BrowserWindow.NormalizeAddress("www.google.com")=="https://www.google.com/"&&BrowserWindow.NormalizeAddress("money")=="https://www.google.com/search?q=money";
+        var ok=files.Values.All(v=>v)&&WebTabs.NormalizeAddress("www.google.com")=="https://www.google.com/"&&WebTabs.NormalizeAddress("money")=="https://www.google.com/search?q=money";
         File.WriteAllText(report,JsonSerializer.Serialize(new{ok,files,webView2Runtime=version,ollama,contentLoading="WebView2 virtual host; no local TCP server",checkedAt=DateTimeOffset.Now},new JsonSerializerOptions{WriteIndented=true}));if(!ok)throw new Exception("Desktop smoke checks failed.");
     }
 }
