@@ -108,12 +108,12 @@ function showSignIn(): void {
 login.addEventListener('click', () => { if (stage === 'lock') showSignIn(); });
 login.addEventListener('keydown', (e) => {
   if (stage === 'lock' && !e.ctrlKey && !e.altKey && !e.metaKey) { e.preventDefault(); showSignIn(); }
+  else if (stage === 'signin' && e.key === 'Escape') showLock();
 });
-/** One layer only: the screen opens straight on the sign-in card, never on a clock card first. */
-function showScreen(): void { showLock(); showSignIn(); }
-// Every time the screen is shown again (Sign out, Lock), open on the sign-in card.
-new MutationObserver(() => { if (!login.classList.contains('hidden')) showScreen(); }).observe(login, { attributes: true, attributeFilter: ['class'] });
-showScreen();
+// As on Windows: the clock first; a click or a key brings up the sign-in card.
+// Every time the screen is shown again (Sign out, Lock), start from the clock.
+new MutationObserver(() => { if (!login.classList.contains('hidden')) showLock(); }).observe(login, { attributes: true, attributeFilter: ['class'] });
+showLock();
 
 /** Lock: the desktop and its windows stay as they are; signing in returns to them. */
 function lockNow(): void {

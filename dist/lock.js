@@ -320,16 +320,12 @@
     if (stage === "lock" && !e.ctrlKey && !e.altKey && !e.metaKey) {
       e.preventDefault();
       showSignIn();
-    }
+    } else if (stage === "signin" && e.key === "Escape") showLock();
   });
-  function showScreen() {
-    showLock();
-    showSignIn();
-  }
   new MutationObserver(() => {
-    if (!login.classList.contains("hidden")) showScreen();
+    if (!login.classList.contains("hidden")) showLock();
   }).observe(login, { attributes: true, attributeFilter: ["class"] });
-  showScreen();
+  showLock();
   function lockNow() {
     $("#startMenu")?.classList.add("hidden");
     $("#desktop")?.classList.add("hidden");
