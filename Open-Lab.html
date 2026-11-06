@@ -1550,6 +1550,15 @@ hr.page-break{border:0;border-top:2px dashed #b5b5b5;margin:28px 0}
 .pen-mode{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 10px;border:1px solid var(--ia-line,#d1d1d1);border-radius:6px;background:transparent;color:inherit;font:12px var(--ia-font,"Segoe UI",sans-serif);white-space:nowrap;cursor:pointer}
 .pen-mode.drawing{background:var(--ia-accent,#0f6cbd);border-color:var(--ia-accent,#0f6cbd);color:var(--ia-accent-ink,#fff)}
 @media (max-width:760px){.pen-bar{flex-wrap:wrap;max-width:calc(100vw - 16px)}}
+/* ---- Dark mode: inline colours apps set in code (the generated layer covers stylesheets: itlab/darkmode.ts) ---- */
+html[data-theme=dark] .corp-aduc{background:#202020!important}
+html[data-theme=dark] .app-body :is([style*="background: rgb(255, 255, 255)"],[style*="background:#fff;"],[style*="background:#fff\""],[style*="background:white"],[style*="background-color: rgb(255, 255, 255)"]):not(.word-page,.word-page *,.ppt-slide,.ppt-slide *,.cert,.cert *){background:#202020!important}
+html[data-theme=dark] .app-body :is([style*="color:#777"],[style*="color: #777"],[style*="color:#7b8897"],[style*="color:#666"],[style*="color:#555"],[style*="color: rgb(119, 119, 119)"],[style*="color: rgb(34, 34, 34)"],[style*="color: rgb(51, 51, 51)"],[style*="color: rgb(68, 68, 68)"],[style*="color: rgb(85, 85, 85)"],[style*="color: rgb(96, 96, 96)"],[style*="color: rgb(102, 102, 102)"],[style*="color: rgb(110, 110, 110)"],[style*="color: rgb(112, 112, 112)"],[style*="color: rgb(117, 117, 117)"],[style*="color: rgb(128, 128, 128)"],[style*="color:#333"],[style*="color:#444"],[style*="color:#888"]):not(.word-page *,.ppt-slide *){color:#b8b8b8!important}
+html[data-theme=dark] .settings-avatar{color:#d6e6fb!important}
+/* Documents stay paper: dark ink on the Word page and slides, as Office does in dark mode. */
+html[data-theme=dark] .app-body .word-page{color:#1b1b1b}
+html[data-theme=dark] .app-body .word-page :is(h1,h2,h3,h4,b,strong,label,p,li,td,th,small,span){color:inherit}
+html.ia-native .lk-web{display:none!important}
 </style>
 </head>
 <body>
@@ -2566,12 +2575,16 @@ window.CorpDesk={...window.CorpDesk,evaluateFormula,cellValue,offlineAnswer,sett
     if (stage === "lock" && !e.ctrlKey && !e.altKey && !e.metaKey) {
       e.preventDefault();
       showSignIn();
-    } else if (stage === "signin" && e.key === "Escape") showLock();
+    }
   });
+  function showScreen() {
+    showLock();
+    showSignIn();
+  }
   new MutationObserver(() => {
-    if (!login.classList.contains("hidden")) showLock();
+    if (!login.classList.contains("hidden")) showScreen();
   }).observe(login, { attributes: true, attributeFilter: ["class"] });
-  showLock();
+  showScreen();
   function lockNow() {
     $("#startMenu")?.classList.add("hidden");
     $("#desktop")?.classList.add("hidden");
@@ -10223,6 +10236,147 @@ Authentication-Results: spf=pass smtp.mailfrom=${DOMAIN}; dkim=pass header.d=${D
   }).observe(document.body, { attributes: true, attributeFilter: ["class"] });
   applyTheme();
 
+  // itlab/darkmode.ts
+  var SKIP = /(^|[\s>+~(,])(\.lk|#login|\.lock|\.landing|\.jam|\.dj-|\.pen-|\.ia-pen|\.cert|\.word-page|#wordEditor|\.ppt-slide|\.ppt-thumb|\.calc-key|\.wallpaper|\.desktop-icon|#desktopIcons|\.wf-|\.workflow|\.mm-shield|\.taskbar|#startMenu|\.st-|\.ia-fs|\.ia-theme)|data-theme|settings-dark|::selection|::-webkit-scrollbar|:root|^html\b|^body\b(?![.#[])/i;
+  var ID = "ia-dark-auto";
+  var probe = null;
+  function rgba(value) {
+    const v = value.trim().toLowerCase();
+    if (!v || v.includes("var(") || v === "transparent" || v === "currentcolor" || v === "inherit" || v === "initial" || v === "unset" || v === "none") return null;
+    probe || (probe = document.createElement("canvas").getContext("2d"));
+    if (!probe) return null;
+    probe.fillStyle = "#010203";
+    probe.fillStyle = v;
+    const out = String(probe.fillStyle);
+    if (out === "#010203" && v !== "#010203") return null;
+    if (out.startsWith("#")) return [parseInt(out.slice(1, 3), 16), parseInt(out.slice(3, 5), 16), parseInt(out.slice(5, 7), 16), 1];
+    const m = out.match(/rgba?\(([^)]+)\)/);
+    if (!m) return null;
+    const p = m[1].split(",").map((x) => parseFloat(x));
+    return [p[0], p[1], p[2], p[3] ?? 1];
+  }
+  function hsl([r, g, b]) {
+    r /= 255;
+    g /= 255;
+    b /= 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2;
+    if (max === min) return [0, 0, l];
+    const d = max - min, s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    const h2 = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    return [h2 * 60, s, l];
+  }
+  var css = (h2, s, l, a) => `hsl(${h2.toFixed(0)} ${(s * 100).toFixed(0)}% ${(l * 100).toFixed(1)}%${a < 1 ? ` / ${a}` : ""})`;
+  function darkBg(value) {
+    const c = rgba(value);
+    if (!c || c[3] === 0) return null;
+    const [h2, s, l] = hsl(c);
+    if (!(l >= 0.85 || s < 0.18 && l >= 0.6)) return null;
+    return css(h2, s * 0.45, 0.125 + (1 - l) * 0.95, c[3]);
+  }
+  function lightInk(value) {
+    const c = rgba(value);
+    if (!c) return null;
+    const [h2, s, l] = hsl(c);
+    if (l > 0.62 || l > 0.45 && s > 0.3) return null;
+    return css(h2, Math.min(s, 0.85), Math.max(0.78, 0.93 - l * 0.3), c[3]);
+  }
+  function darkLine(value) {
+    const c = rgba(value);
+    if (!c || c[3] === 0) return null;
+    const [h2, s, l] = hsl(c);
+    if (l < 0.75) return null;
+    return css(h2, s * 0.3, 0.25, c[3]);
+  }
+  var COLOR_TOKEN = /#[0-9a-f]{3,8}\b|rgba?\([^)]*\)|hsla?\([^)]*\)|\bwhite\b/gi;
+  function darkGradient(value) {
+    if (!/gradient\(/i.test(value) || /url\(/i.test(value)) return null;
+    let changed = false;
+    const out = value.replace(COLOR_TOKEN, (tok) => {
+      const d = darkBg(tok);
+      if (d) {
+        changed = true;
+        return d;
+      }
+      return tok;
+    });
+    return changed ? out : null;
+  }
+  function rulesOf(list, out, media = "") {
+    for (const rule of [...list]) {
+      if (rule instanceof CSSMediaRule) {
+        if (!/print/i.test(rule.conditionText)) {
+          const inner = [];
+          rulesOf(rule.cssRules, inner);
+          if (inner.length) out.push(`@media ${rule.conditionText}{${inner.join("")}}`);
+        }
+        continue;
+      }
+      if (typeof CSSSupportsRule !== "undefined" && rule instanceof CSSSupportsRule) {
+        const inner = [];
+        rulesOf(rule.cssRules, inner);
+        if (inner.length) out.push(`@supports ${rule.conditionText}{${inner.join("")}}`);
+        continue;
+      }
+      if (!(rule instanceof CSSStyleRule)) continue;
+      const st = rule.style, decls = [];
+      const imp = (p) => st.getPropertyPriority(p) === "important" ? "!important" : "";
+      const bg = st.getPropertyValue("background-color"), bgi = st.getPropertyValue("background-image");
+      const dbg = bg ? darkBg(bg) : null;
+      if (dbg) decls.push(`background-color:${dbg}${imp("background-color")}`);
+      const dgi = bgi ? darkGradient(bgi) : null;
+      if (dgi) decls.push(`background-image:${dgi}${imp("background-image")}`);
+      const color = st.getPropertyValue("color");
+      const ink = color ? lightInk(color) : null;
+      if (ink) decls.push(`color:${ink}${imp("color")}`);
+      for (const side of ["top", "right", "bottom", "left"]) {
+        const v = st.getPropertyValue(`border-${side}-color`);
+        const d = v ? darkLine(v) : null;
+        if (d) decls.push(`border-${side}-color:${d}${imp(`border-${side}-color`)}`);
+      }
+      if (st.getPropertyValue("color-scheme") === "light") decls.push("color-scheme:dark");
+      if (!decls.length) continue;
+      const sels = rule.selectorText.split(/,(?![^(]*\))/).map((s) => s.trim()).filter((s) => s && !SKIP.test(s));
+      if (!sels.length) continue;
+      out.push(`${sels.map((s) => `html[data-theme=dark] ${s}`).join(",")}{${decls.join(";")}}`);
+    }
+  }
+  function build() {
+    if (!document.head) return;
+    const out = [];
+    for (const sheet of [...document.styleSheets]) {
+      const owner = sheet.ownerNode;
+      if (owner?.id === ID) continue;
+      let rules;
+      try {
+        rules = sheet.cssRules;
+      } catch {
+        continue;
+      }
+      rulesOf(rules, out);
+    }
+    let style = document.getElementById(ID);
+    if (!style) {
+      style = document.createElement("style");
+      style.id = ID;
+      const itlab = [...document.querySelectorAll('link[rel="stylesheet"]')].find((l) => /itlab\.css/.test(l.href));
+      if (itlab) itlab.before(style);
+      else document.head.append(style);
+    }
+    const text = out.join("\n");
+    if (style.textContent !== text) style.textContent = text;
+  }
+  var timer = 0;
+  var later = () => {
+    clearTimeout(timer);
+    timer = window.setTimeout(build, 150);
+  };
+  if (document.readyState === "loading") addEventListener("DOMContentLoaded", build);
+  else build();
+  addEventListener("load", later);
+  new MutationObserver((list) => {
+    if (list.some((m) => [...m.addedNodes].some((n) => n.tagName === "STYLE" && n.id !== ID || n.tagName === "LINK"))) later();
+  }).observe(document.head, { childList: true });
+
   // itlab/fullscreen.ts
   var ENTER = '<path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>';
   var EXIT = '<path d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>';
@@ -11570,6 +11724,42 @@ Authentication-Results: spf=pass smtp.mailfrom=${DOMAIN}; dkim=pass header.d=${D
     return j;
   }
   var files = /* @__PURE__ */ new Map();
+  var ENV_RATE = 100;
+  var envs = /* @__PURE__ */ new Map();
+  function seeded(seed) {
+    let a = seed >>> 0;
+    return () => {
+      a = a + 1831565813 >>> 0;
+      let t = a;
+      t = Math.imul(t ^ t >>> 15, t | 1);
+      t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  function synthEnv(id, seconds, bpm) {
+    let h2 = 2166136261;
+    for (const ch of id) h2 = Math.imul(h2 ^ ch.charCodeAt(0), 16777619);
+    const rnd = seeded(h2), n = Math.max(1, Math.ceil(seconds * ENV_RATE)), amp = new Float32Array(n), low = new Float32Array(n);
+    const beat = 60 / bpm, sections = Array.from({ length: 64 }, () => 0.45 + rnd() * 0.55), grain = Array.from({ length: 997 }, () => rnd());
+    for (let f = 0; f < n; f++) {
+      const t = f / ENV_RATE, b = t / beat, ph = b - Math.floor(b), bar = Math.floor(b / 4);
+      const level = sections[Math.floor(bar / 8) % sections.length];
+      const kick = Math.exp(-ph * 9), off = Math.exp(-Math.abs(ph - 0.5) * 18) * 0.45, hat = grain[f % grain.length] * 0.22;
+      const edge = Math.min(1, t / 6, Math.max(0, seconds - t) / 6);
+      amp[f] = Math.min(1, edge * level * (0.28 + 0.6 * kick + off * 0.5 + hat));
+      low[f] = Math.min(1, (kick * 0.95 + 0.12) * (level > 0.62 ? 1 : 0.7));
+    }
+    return { amp, low, real: false, key: `${id}:${Math.round(seconds)}:${bpm}` };
+  }
+  function envFor(t, duration) {
+    const e = envs.get(t.id);
+    if (t.kind === "file") return e ?? null;
+    const seconds = duration || t.duration || 420, bpm = t.bpm || 120, key = `${t.id}:${Math.round(seconds)}:${bpm}`;
+    if (e?.key === key) return e;
+    const made = synthEnv(t.id, seconds, bpm);
+    envs.set(t.id, made);
+    return made;
+  }
   var searchResults = null;
   var searchQuery = "";
   var searching = false;
@@ -11911,6 +12101,24 @@ Authentication-Results: spf=pass smtp.mailfrom=${DOMAIN}; dkim=pass header.d=${D
           bestLag = lag;
         }
       }
+      const hopE = Math.max(1, Math.floor(buf.sampleRate / ENV_RATE)), nE = Math.floor(ch.length / hopE), amp = new Float32Array(nE), low = new Float32Array(nE);
+      const kLp = 1 - Math.exp(-2 * Math.PI * 150 / buf.sampleRate);
+      let lp = 0, maxA = 0;
+      for (let f = 0; f < nE; f++) {
+        let a = 0, l = 0;
+        for (let i = f * hopE, e = i + hopE; i < e; i++) {
+          const s = ch[i];
+          lp += kLp * (s - lp);
+          const as = s < 0 ? -s : s, al = lp < 0 ? -lp : lp;
+          if (as > a) a = as;
+          if (al > l) l = al;
+        }
+        amp[f] = a;
+        low[f] = a ? Math.min(1, l / a * 1.6) : 0;
+        if (a > maxA) maxA = a;
+      }
+      if (maxA) for (let f = 0; f < nE; f++) amp[f] /= maxA;
+      envs.set(id, { amp, low, real: true, key: id });
       const entry = files.get(id);
       if (!entry) return;
       entry.peaks = peaks2;
@@ -12060,7 +12268,7 @@ Authentication-Results: spf=pass smtp.mailfrom=${DOMAIN}; dkim=pass header.d=${D
         Object.assign(slot.style, { left: `${left}px`, top: `${top}px`, width: `${w}px`, height: `${hgt}px`, right: "", bottom: "", zIndex: pip ? "2" : "1", clipPath: `inset(${t}px ${rt}px ${b}px ${l}px round 3px)`, visibility: t + b >= hgt || l + rt >= w ? "hidden" : "" });
       } else {
         slot.classList.add("mini");
-        Object.assign(slot.style, { left: "", top: "", right: `${12 + mini * 212}px`, bottom: "64px", width: "200px", height: "112px", zIndex: "", clipPath: "", visibility: "" });
+        Object.assign(slot.style, { left: "-10000px", top: "0px", right: "", bottom: "", width: "320px", height: "180px", zIndex: "", clipPath: "", visibility: "" });
         mini++;
       }
     }
@@ -12301,9 +12509,9 @@ Authentication-Results: spf=pass smtp.mailfrom=${DOMAIN}; dkim=pass header.d=${D
     fading = true;
     void play(to);
     const start = j.xfade, end = to === "B" ? 1 : 0, t0 = performance.now();
-    const timer = setInterval(() => {
+    const timer2 = setInterval(() => {
       if (!fading) {
-        clearInterval(timer);
+        clearInterval(timer2);
         save();
         return;
       }
@@ -12314,7 +12522,7 @@ Authentication-Results: spf=pass smtp.mailfrom=${DOMAIN}; dkim=pass header.d=${D
         c.style.left = `calc(${j.xfade} * (100% - 18px))`;
       });
       if (k >= 1) {
-        clearInterval(timer);
+        clearInterval(timer2);
         fading = false;
         pause(other(to));
         save();
@@ -12648,7 +12856,6 @@ Authentication-Results: spf=pass smtp.mailfrom=${DOMAIN}; dkim=pass header.d=${D
     }
     paintLive();
   }, 50);
-  var SPAN = 6;
   function paintLive() {
     const root = document.querySelector(".jam-dj");
     if (!root) return;
@@ -12748,7 +12955,14 @@ Authentication-Results: spf=pass smtp.mailfrom=${DOMAIN}; dkim=pass header.d=${D
       }
     }
   }
-  var COLORS = { A: "#3b82f6", B: "#f97316" };
+  var DECK_COLORS = { A: { hi: "#4cc3ff", lo: "#1d5fff" }, B: { hi: "#ff8a3d", lo: "#ff2d55" } };
+  var ZOOM_SECONDS = 12;
+  var STRIP_SECONDS = 6;
+  function pixel(hex, alpha = 255) {
+    const n = parseInt(hex.slice(1), 16);
+    return (alpha << 24 | (n & 255) << 16 | n & 65280 | n >> 16 & 255) >>> 0;
+  }
+  var rasters = /* @__PURE__ */ new WeakMap();
   function sizeCanvas(cv) {
     const w = cv.clientWidth, hh = cv.clientHeight;
     if (!w || !hh) return null;
@@ -12758,77 +12972,130 @@ Authentication-Results: spf=pass smtp.mailfrom=${DOMAIN}; dkim=pass header.d=${D
       cv.height = Math.round(hh * k);
     }
     const g = cv.getContext("2d");
-    g?.setTransform(k, 0, 0, k, 0, 0);
-    return g;
+    if (!g) return null;
+    g.setTransform(k, 0, 0, k, 0, 0);
+    return { g, w, h: hh, k };
   }
   function paintZoom(cv, decks, compact) {
     if (!cv) return;
-    const g = sizeCanvas(cv);
-    if (!g) return;
-    const w = cv.clientWidth, hh = cv.clientHeight, lane = hh / decks.length;
-    g.clearRect(0, 0, w, hh);
-    decks.forEach((d, row) => {
-      const t = deckTrack(d), L = live2[d], mid = row * lane + lane / 2, col = COLORS[d];
-      if (!compact) {
-        g.fillStyle = "#4b5563";
-        g.font = "9px Segoe UI, sans-serif";
-        g.fillText(d, 4, row * lane + 10);
-      }
+    const f = sizeCanvas(cv);
+    if (!f) return;
+    const { g, w, h: h2, k } = f, W = cv.width, H = cv.height, lane = h2 / decks.length, center = w / 2, seconds = compact ? STRIP_SECONDS : ZOOM_SECONDS;
+    let r = rasters.get(cv);
+    if (!r || r.img.width !== W || r.img.height !== H) {
+      const img2 = g.createImageData(W, H);
+      r = { img: img2, px: new Uint32Array(img2.data.buffer) };
+      rasters.set(cv, r);
+    } else r.px.fill(0);
+    const { img, px } = r;
+    decks.forEach((d, i) => {
+      const t = deckTrack(d), L = live2[d];
       if (!t) return;
-      const pk = t.kind === "file" ? files.get(t.id)?.peaks : void 0, span = compact ? SPAN : SPAN * 1.6;
-      for (let x = 0; x < w; x += 1) {
-        const sec = L.time + (x - w / 2) / w * span;
-        if (sec < 0 || L.duration && sec > L.duration) continue;
-        if (pk && L.duration) {
-          const v = pk[Math.floor(sec / L.duration * pk.length)] * (lane / 2 - 2);
-          g.fillStyle = sec < L.time ? `${col}aa` : col;
-          g.fillRect(x, mid - v, 1, v * 2 || 1);
-        } else {
-          g.fillStyle = `${col}66`;
-          g.fillRect(x, mid - 1, 1, 2);
+      const env = envFor(t, L.duration);
+      if (!env) return;
+      const col = DECK_COLORS[d], hi = pixel(col.hi), lo = pixel(col.lo), hiPast = pixel(col.hi, 140), loPast = pixel(col.lo, 140);
+      const laneD = H / decks.length, midD = i * laneD + laneD / 2, half = (lane / 2 - 2) * k;
+      const rate = 1 + jam().decks[d].pitch, sppD = seconds * rate / w / k, t0 = L.time - W / 2 * sppD;
+      for (let x = 0; x < W; x++) {
+        const ta = t0 + x * sppD;
+        const f0 = Math.max(0, Math.floor(ta * ENV_RATE)), f1 = Math.min(env.amp.length, Math.max(f0 + 1, Math.floor((ta + sppD) * ENV_RATE)));
+        let a = 0, l = 0;
+        for (let q2 = f0; q2 < f1; q2++) {
+          if (env.amp[q2] > a) a = env.amp[q2];
+          if (env.low[q2] > l) l = env.low[q2];
         }
-      }
-      const bl = beatLen(d);
-      g.fillStyle = "rgba(255,255,255,0.13)";
-      for (let b = Math.ceil((L.time - span / 2) / bl); b * bl < L.time + span / 2; b++) {
-        const x = w / 2 + (b * bl - L.time) / span * w;
-        g.fillRect(x, row * lane + 2, 1, lane - 4);
+        if (!a) continue;
+        const past = x < W / 2, ah = Math.max(0.5, a * half), lh = l * a * half;
+        const bar = (y0, y1, c) => {
+          const a0 = Math.max(0, Math.floor(y0)), b0 = Math.min(H, Math.ceil(y1));
+          for (let y = a0; y < b0; y++) px[y * W + x] = c;
+        };
+        bar(midD - ah, midD + ah, past ? hiPast : hi);
+        if (lh >= 0.5) bar(midD - lh, midD + lh, past ? loPast : lo);
       }
     });
-    g.fillStyle = "#fff";
-    g.fillRect(Math.round(w / 2) - 1, 0, 2, hh);
+    g.putImageData(img, 0, 0);
+    decks.forEach((d, i) => {
+      const t = deckTrack(d), L = live2[d], top = i * lane, mid = top + lane / 2;
+      const spp = seconds * (1 + jam().decks[d].pitch) / w, t0 = L.time - center * spp, xOf = (s) => (s - t0) / spp;
+      if (t) {
+        const bl = beatLen(d), bars = new Path2D(), beats = new Path2D();
+        for (let n = Math.ceil(t0 / bl); n * bl < t0 + w * spp; n++) {
+          const x = xOf(n * bl), isBar = (n % 4 + 4) % 4 === 0, p = isBar ? bars : beats;
+          p.rect(x, top + 1, isBar ? 1.5 : 1, isBar ? 6 : 4);
+          p.rect(x, top + lane - (isBar ? 7 : 5), isBar ? 1.5 : 1, isBar ? 6 : 4);
+        }
+        g.fillStyle = "rgba(255,255,255,0.75)";
+        g.fill(bars);
+        g.fillStyle = "rgba(255,255,255,0.28)";
+        g.fill(beats);
+        if (L.loopIn != null && L.loopOut != null) {
+          g.fillStyle = L.loop ? "rgba(74,222,128,0.22)" : "rgba(255,255,255,0.08)";
+          g.fillRect(xOf(L.loopIn), top, xOf(L.loopOut) - xOf(L.loopIn), lane);
+        }
+        g.fillStyle = "#ffd60a";
+        g.fillRect(xOf(jam().decks[d].cues[0] ?? 0), top, 1.5, lane);
+      }
+      if (i > 0) {
+        g.fillStyle = "rgba(255,255,255,0.08)";
+        g.fillRect(0, top, w, 1);
+      }
+      g.fillStyle = "rgba(255,255,255,0.35)";
+      g.font = "bold 11px Inter, Arial";
+      if (!compact) g.fillText(d, 4, top + 11);
+      else if (t?.kind === "yt" && !L.duration) {
+        g.fillStyle = "rgba(255,255,255,0.5)";
+        g.fillText("Loading from YouTube…", 6, mid + 4);
+      }
+    });
+    g.fillStyle = "#ffffff";
+    g.fillRect(center - 1, 0, 2, h2);
+    g.beginPath();
+    g.moveTo(center - 5, 0);
+    g.lineTo(center + 5, 0);
+    g.lineTo(center, 6);
+    g.moveTo(center - 5, h2);
+    g.lineTo(center + 5, h2);
+    g.lineTo(center, h2 - 6);
+    g.fill();
   }
   function paintOverview(cv, d) {
     if (!cv) return;
-    const g = sizeCanvas(cv);
-    if (!g) return;
-    const w = cv.clientWidth, hh = cv.clientHeight, t = deckTrack(d), L = live2[d];
-    g.clearRect(0, 0, w, hh);
-    g.fillStyle = "#08090b";
-    g.fillRect(0, 0, w, hh);
+    const f = sizeCanvas(cv);
+    if (!f) return;
+    const { g, w, h: h2 } = f, t = deckTrack(d), L = live2[d];
+    g.clearRect(0, 0, w, h2);
     if (!t) return;
-    const p = L.duration ? Math.min(1, L.time / L.duration) : 0, pk = t.kind === "file" ? files.get(t.id)?.peaks : void 0;
-    if (pk) for (let x = 0; x < w; x++) {
-      const v = pk[Math.floor(x / w * pk.length)] * (hh / 2);
-      g.fillStyle = x / w < p ? COLORS[d] : "#6b7280";
-      g.fillRect(x, hh / 2 - v, 1, v * 2 || 1);
+    const dur = L.duration || t.duration, env = envFor(t, dur);
+    if (!env || !dur) return;
+    const head = Math.min(1, L.time / dur) * w, col = DECK_COLORS[d];
+    for (let x = 0; x < w; x++) {
+      const f0 = Math.floor(x / w * env.amp.length), f1 = Math.max(f0 + 1, Math.floor((x + 1) / w * env.amp.length));
+      let a = 0, l = 0;
+      for (let q2 = f0; q2 < f1 && q2 < env.amp.length; q2++) {
+        if (env.amp[q2] > a) a = env.amp[q2];
+        if (env.low[q2] > l) l = env.low[q2];
+      }
+      const ah = Math.max(0.5, a * h2 / 2);
+      g.globalAlpha = x < head ? 1 : 0.45;
+      g.fillStyle = col.hi;
+      g.fillRect(x, h2 / 2 - ah, 1, ah * 2);
+      if (l * a > 0.05) {
+        g.fillStyle = col.lo;
+        g.fillRect(x, h2 / 2 - l * a * h2 / 2, 1, l * a * h2);
+      }
     }
-    else {
-      g.fillStyle = "#374151";
-      g.fillRect(0, hh / 2 - 1.5, w, 3);
-      g.fillStyle = COLORS[d];
-      g.fillRect(0, hh / 2 - 1.5, w * p, 3);
+    g.globalAlpha = 1;
+    for (const c of jam().decks[d].cues) if (c != null) {
+      g.fillStyle = "#ffd60a";
+      g.fillRect(c / dur * w, 0, 1.5, h2);
     }
-    for (const c of jam().decks[d].cues) if (c != null && L.duration) {
-      g.fillStyle = "#fbbf24";
-      g.fillRect(c / L.duration * w, 0, 2, hh);
-    }
-    if (L.loopIn != null && L.loopOut != null && L.duration) {
+    if (L.loopIn != null && L.loopOut != null) {
       g.fillStyle = "rgba(74,222,128,0.35)";
-      g.fillRect(L.loopIn / L.duration * w, 0, (L.loopOut - L.loopIn) / L.duration * w, hh);
+      g.fillRect(L.loopIn / dur * w, 0, (L.loopOut - L.loopIn) / dur * w, h2);
     }
     g.fillStyle = "#fff";
-    g.fillRect(Math.round(p * w), 0, 2, hh);
+    g.fillRect(head - 1, 0, 2, h2);
   }
   var scopeOpen = false;
   var uiZoom = (() => {
@@ -13941,12 +14208,12 @@ Authentication-Results: spf=pass smtp.mailfrom=${DOMAIN}; dkim=pass header.d=${D
         ctx2.restore();
       }
     };
-    const timer = window.setInterval(paint2, 1e3 / 30);
+    const timer2 = window.setInterval(paint2, 1e3 / 30);
     let stopped = null;
     const finish = () => {
       stopped ?? (stopped = new Promise((resolve) => {
         running = false;
-        clearInterval(timer);
+        clearInterval(timer2);
         const done2 = () => {
           stopAll();
           for (const t of out.getTracks()) t.stop();
@@ -14011,7 +14278,7 @@ Authentication-Results: spf=pass smtp.mailfrom=${DOMAIN}; dkim=pass header.d=${D
     { id: "box", title: "Box" },
     { id: "eraser", title: "Eraser" }
   ];
-  var COLORS2 = ["#e81123", "#ffb900", "#16c60c", "#0078d4", "#ffffff", "#000000"];
+  var COLORS = ["#e81123", "#ffb900", "#16c60c", "#0078d4", "#ffffff", "#000000"];
   var POS_KEY = "corpdesk-pen-toolbar";
   var CAM_KEY = "corpdesk-pen-camera";
   var read = (k) => {
@@ -14047,7 +14314,7 @@ Authentication-Results: spf=pass smtp.mailfrom=${DOMAIN}; dkim=pass header.d=${D
       return;
     }
     let tool = "pen";
-    let color = COLORS2[0];
+    let color = COLORS[0];
     let size = 3;
     let drawing = false;
     let strokes = [];
@@ -14286,7 +14553,7 @@ Authentication-Results: spf=pass smtp.mailfrom=${DOMAIN}; dkim=pass header.d=${D
           else render();
         })),
         sep(),
-        ...COLORS2.map((c) => h("button", { class: `pen-swatch ${c === color ? "on" : ""}`, type: "button", title: c, "aria-label": `Colour ${c}`, style: `background:${c}`, onClick: () => {
+        ...COLORS.map((c) => h("button", { class: `pen-swatch ${c === color ? "on" : ""}`, type: "button", title: c, "aria-label": `Colour ${c}`, style: `background:${c}`, onClick: () => {
           color = c;
           if (tool === "eraser") tool = "pen";
           if (!drawing) setMode(true);
@@ -16046,6 +16313,7 @@ ${jobs.map((j) => `${String(j.id).padEnd(3)} LAB-DC01     ${j.printer.padEnd(11)
   draw2();
 
   // itlab/entry.ts
+  if (G.corpDesktop?.isNative) document.documentElement.classList.add("ia-native");
   lab();
   applyResetKeep();
   ensureServices();

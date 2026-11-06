@@ -7,6 +7,7 @@
  */
 import { G, checkLabPassword, lab, setLabPassword, welcomeMail, writePwdFile, save } from './corp.ts';
 import './theme.ts';
+import './darkmode.ts';
 import './fullscreen.ts';
 import './tools/m365.ts';
 import './tools/entra.ts';
@@ -22,6 +23,8 @@ import './start.ts';
 import { refreshShortcuts } from './host.ts';
 import { ensureServices } from './tools/services.ts';
 
+// In the desktop app there is no landing page to go back to: hide the lock screen's "Lab overview" link.
+if (G.corpDesktop?.isNative) document.documentElement.classList.add('ia-native');
 lab();
 applyResetKeep();
 ensureServices();

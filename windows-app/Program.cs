@@ -101,7 +101,8 @@ internal sealed class LabWindow : Form
                 else{FormBorderStyle=savedBorder;WindowState=savedState;}
             };
             web.CoreWebView2.NavigationCompleted+=async(_,_)=>await UpdateOllama();
-            web.Source=new Uri(host.Origin+"/index.html");poll.Start();
+            // The desktop app opens straight onto the workstation (lab.html); the landing page is for the website.
+            web.Source=new Uri(host.Origin+"/lab.html");poll.Start();
         }catch(Exception ex){MessageBox.Show(this,"The desktop could not load.\n\n"+ex.Message,"CORP Desk",MessageBoxButtons.OK,MessageBoxIcon.Error);}
     }
     private async Task SendWeb(string detail)

@@ -73,6 +73,40 @@ function jam(): JamState {
 
 // Songs from the computer: kept in memory for this session.
 const files = new Map<string, { track: Track; url: string; peaks?: Float32Array }>();
+/**
+ * Waveform envelopes at ENV_RATE frames a second, as AIHub draws them: overall
+ * level (amp) and how much of it is bass (low). Songs from the computer are
+ * measured from their audio. YouTube keeps its audio inside its player, so a
+ * YouTube deck gets an envelope generated from its tempo: beats, bars and
+ * sections that scroll past the needle, not a measurement of the sound.
+ */
+const ENV_RATE = 100;
+interface Env { amp: Float32Array; low: Float32Array; real: boolean; key: string }
+const envs = new Map<string, Env>();
+function seeded(seed: number): () => number { let a = seed >>> 0; return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+function synthEnv(id: string, seconds: number, bpm: number): Env {
+  let h = 2166136261; for (const ch of id) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+  const rnd = seeded(h), n = Math.max(1, Math.ceil(seconds * ENV_RATE)), amp = new Float32Array(n), low = new Float32Array(n);
+  const beat = 60 / bpm, sections = Array.from({ length: 64 }, () => 0.45 + rnd() * 0.55), grain = Array.from({ length: 997 }, () => rnd());
+  for (let f = 0; f < n; f++) {
+    const t = f / ENV_RATE, b = t / beat, ph = b - Math.floor(b), bar = Math.floor(b / 4);
+    const level = sections[Math.floor(bar / 8) % sections.length]!;
+    const kick = Math.exp(-ph * 9), off = Math.exp(-Math.abs(ph - 0.5) * 18) * 0.45, hat = grain[f % grain.length]! * 0.22;
+    const edge = Math.min(1, t / 6, Math.max(0, seconds - t) / 6);
+    amp[f] = Math.min(1, edge * level * (0.28 + 0.6 * kick + off * 0.5 + hat));
+    low[f] = Math.min(1, (kick * 0.95 + 0.12) * (level > 0.62 ? 1 : 0.7));
+  }
+  return { amp, low, real: false, key: `${id}:${Math.round(seconds)}:${bpm}` };
+}
+function envFor(t: Track, duration: number): Env | null {
+  const e = envs.get(t.id);
+  if (t.kind === 'file') return e ?? null;
+  const seconds = duration || t.duration || 420, bpm = t.bpm || 120, key = `${t.id}:${Math.round(seconds)}:${bpm}`;
+  if (e?.key === key) return e;
+  const made = synthEnv(t.id, seconds, bpm);
+  envs.set(t.id, made);
+  return made;
+}
 let searchResults: Track[] | null = null;
 let searchQuery = '';
 let searching = false;
@@ -256,6 +290,17 @@ async function analyse(id: string, blob: Blob): Promise<void> {
     const fps = buf.sampleRate / hop;
     let best = 0, bestLag = 0;
     for (let lag = Math.floor((fps * 60) / 180); lag <= Math.ceil((fps * 60) / 70); lag++) { let s = 0; for (let f = lag; f < frames; f++) s += env[f] * env[f - lag]; if (s > best) { best = s; bestLag = lag; } }
+    // Level and bass envelopes for the scrolling waveforms (bass: a one-pole low-pass at ~150 Hz).
+    const hopE = Math.max(1, Math.floor(buf.sampleRate / ENV_RATE)), nE = Math.floor(ch.length / hopE), amp = new Float32Array(nE), low = new Float32Array(nE);
+    const kLp = 1 - Math.exp((-2 * Math.PI * 150) / buf.sampleRate);
+    let lp = 0, maxA = 0;
+    for (let f = 0; f < nE; f++) {
+      let a = 0, l = 0;
+      for (let i = f * hopE, e = i + hopE; i < e; i++) { const s = ch[i]; lp += kLp * (s - lp); const as = s < 0 ? -s : s, al = lp < 0 ? -lp : lp; if (as > a) a = as; if (al > l) l = al; }
+      amp[f] = a; low[f] = a ? Math.min(1, (l / a) * 1.6) : 0; if (a > maxA) maxA = a;
+    }
+    if (maxA) for (let f = 0; f < nE; f++) amp[f] /= maxA;
+    envs.set(id, { amp, low, real: true, key: id });
     const entry = files.get(id);
     if (!entry) return;
     entry.peaks = peaks;
@@ -342,8 +387,8 @@ const live: Record<D, { playing: boolean; time: number; duration: number; error:
  * The YouTube iframes live in a dock on <body>, never inside the Jam window:
  * CORP redraws a tool on every save and shows windows one over another, and
  * moving or removing an iframe reloads it. While Jam's video monitor is in
- * view the players are laid over it; otherwise they shrink to a mini player
- * above the taskbar, so the music keeps playing while the learner works.
+ * view the players are laid over it; otherwise they wait off screen, still
+ * playing, so the music goes on while the learner works in other windows.
  */
 const dock = h('div', { class: 'jam-dock', 'aria-label': 'Jam video players' });
 const slots: Record<D, HTMLElement> = { A: h('div', { class: 'jam-video-slot', 'data-deck': 'A' }), B: h('div', { class: 'jam-video-slot', 'data-deck': 'B' }) };
@@ -359,7 +404,7 @@ function placeDock(): void {
   dock.style.visibility = locked ? 'hidden' : '';
   const monitor = document.querySelector<HTMLElement>('[data-jam-video="main"]');
   let r = monitor?.isConnected ? monitor.getBoundingClientRect() : null;
-  // Another window (or the Start menu) in front of the monitor: use the mini player instead of covering it.
+  // Another window (or the Start menu) in front of the monitor: move the players off screen instead of covering it.
   if (r && r.width > 40) {
     const pts: [number, number][] = [[r.left + r.width / 2, r.top + r.height / 2], [r.left + 4, r.top + 4], [r.right - 4, r.top + 4], [r.left + 4, r.bottom - 4], [r.right - 4, r.bottom - 4]];
     const covered = pts.some(([x, y]) => { const top = document.elementsFromPoint(x, y).find((e) => !dock.contains(e)); return !!top && !monitor!.contains(top); });
@@ -381,8 +426,9 @@ function placeDock(): void {
       const t = Math.max(0, c.top - top), b = Math.max(0, top + hgt - c.bottom), l = Math.max(0, c.left - left), rt = Math.max(0, left + w - c.right);
       Object.assign(slot.style, { left: `${left}px`, top: `${top}px`, width: `${w}px`, height: `${hgt}px`, right: '', bottom: '', zIndex: pip ? '2' : '1', clipPath: `inset(${t}px ${rt}px ${b}px ${l}px round 3px)`, visibility: t + b >= hgt || l + rt >= w ? 'hidden' : '' });
     } else {
+      // Jam not on screen: the players wait off screen, still playing, instead of floating over the desktop.
       slot.classList.add('mini');
-      Object.assign(slot.style, { left: '', top: '', right: `${12 + mini * 212}px`, bottom: '64px', width: '200px', height: '112px', zIndex: '', clipPath: '', visibility: '' });
+      Object.assign(slot.style, { left: '-10000px', top: '0px', right: '', bottom: '', width: '320px', height: '180px', zIndex: '', clipPath: '', visibility: '' });
       mini++;
     }
   }
@@ -806,53 +852,102 @@ function paintLive(): void {
     }
   }
 }
-const COLORS: Record<D, string> = { A: '#3b82f6', B: '#f97316' };
-function sizeCanvas(cv: HTMLCanvasElement): CanvasRenderingContext2D | null {
+/** AIHub DJ's deck colours: a bright band with the bass band inside it. */
+const DECK_COLORS: Record<D, { hi: string; lo: string }> = { A: { hi: '#4cc3ff', lo: '#1d5fff' }, B: { hi: '#ff8a3d', lo: '#ff2d55' } };
+const COLORS: Record<D, string> = { A: '#4cc3ff', B: '#ff2d55' };
+const ZOOM_SECONDS = 12, STRIP_SECONDS = 6;
+/** #rrggbb + alpha as one little-endian RGBA pixel. */
+function pixel(hex: string, alpha = 255): number { const n = parseInt(hex.slice(1), 16); return ((alpha << 24) | ((n & 0xff) << 16) | (n & 0xff00) | ((n >> 16) & 0xff)) >>> 0; }
+const rasters = new WeakMap<HTMLCanvasElement, { img: ImageData; px: Uint32Array }>();
+function sizeCanvas(cv: HTMLCanvasElement): { g: CanvasRenderingContext2D; w: number; h: number; k: number } | null {
   const w = cv.clientWidth, hh = cv.clientHeight;
   if (!w || !hh) return null;
   const k = Math.min(1.5, devicePixelRatio || 1);
   if (cv.width !== Math.round(w * k) || cv.height !== Math.round(hh * k)) { cv.width = Math.round(w * k); cv.height = Math.round(hh * k); }
   const g = cv.getContext('2d');
-  g?.setTransform(k, 0, 0, k, 0, 0);
-  return g;
+  if (!g) return null;
+  g.setTransform(k, 0, 0, k, 0, 0);
+  return { g, w, h: hh, k };
 }
-/** Scrolling waveform around the playhead (AIHub's ZoomWave), one lane per deck. */
+/**
+ * Both decks scrolling right to left past a centre needle with their beat
+ * grids (AIHub's ZoomWave): the waveform is written into a pixel buffer, the
+ * part already played dimmed, then the grid, cue, loop and needle on top.
+ */
 function paintZoom(cv: HTMLCanvasElement | null, decks: D[], compact: boolean): void {
   if (!cv) return;
-  const g = sizeCanvas(cv); if (!g) return;
-  const w = cv.clientWidth, hh = cv.clientHeight, lane = hh / decks.length;
-  g.clearRect(0, 0, w, hh);
-  decks.forEach((d, row) => {
-    const t = deckTrack(d), L = live[d], mid = row * lane + lane / 2, col = COLORS[d];
-    if (!compact) { g.fillStyle = '#4b5563'; g.font = '9px Segoe UI, sans-serif'; g.fillText(d, 4, row * lane + 10); }
+  const f = sizeCanvas(cv); if (!f) return;
+  const { g, w, h, k } = f, W = cv.width, H = cv.height, lane = h / decks.length, center = w / 2, seconds = compact ? STRIP_SECONDS : ZOOM_SECONDS;
+  let r = rasters.get(cv);
+  if (!r || r.img.width !== W || r.img.height !== H) { const img = g.createImageData(W, H); r = { img, px: new Uint32Array(img.data.buffer) }; rasters.set(cv, r); } else r.px.fill(0);
+  const { img, px } = r;
+  decks.forEach((d, i) => {
+    const t = deckTrack(d), L = live[d];
     if (!t) return;
-    const pk = t.kind === 'file' ? files.get(t.id)?.peaks : undefined, span = compact ? SPAN : SPAN * 1.6;
-    for (let x = 0; x < w; x += 1) {
-      const sec = L.time + ((x - w / 2) / w) * span;
-      if (sec < 0 || (L.duration && sec > L.duration)) continue;
-      if (pk && L.duration) { const v = pk[Math.floor((sec / L.duration) * pk.length)] * (lane / 2 - 2); g.fillStyle = sec < L.time ? `${col}aa` : col; g.fillRect(x, mid - v, 1, v * 2 || 1); }
-      else { g.fillStyle = `${col}66`; g.fillRect(x, mid - 1, 1, 2); }
+    const env = envFor(t, L.duration);
+    if (!env) return;
+    const col = DECK_COLORS[d], hi = pixel(col.hi), lo = pixel(col.lo), hiPast = pixel(col.hi, 140), loPast = pixel(col.lo, 140);
+    const laneD = H / decks.length, midD = i * laneD + laneD / 2, half = (lane / 2 - 2) * k;
+    const rate = 1 + jam().decks[d].pitch, sppD = (seconds * rate) / w / k, t0 = L.time - (W / 2) * sppD;
+    for (let x = 0; x < W; x++) {
+      const ta = t0 + x * sppD;
+      const f0 = Math.max(0, Math.floor(ta * ENV_RATE)), f1 = Math.min(env.amp.length, Math.max(f0 + 1, Math.floor((ta + sppD) * ENV_RATE)));
+      let a = 0, l = 0;
+      for (let q = f0; q < f1; q++) { if (env.amp[q]! > a) a = env.amp[q]!; if (env.low[q]! > l) l = env.low[q]!; }
+      if (!a) continue;
+      const past = x < W / 2, ah = Math.max(0.5, a * half), lh = l * a * half;
+      const bar = (y0: number, y1: number, c: number): void => { const a0 = Math.max(0, Math.floor(y0)), b0 = Math.min(H, Math.ceil(y1)); for (let y = a0; y < b0; y++) px[y * W + x] = c; };
+      bar(midD - ah, midD + ah, past ? hiPast : hi);
+      if (lh >= 0.5) bar(midD - lh, midD + lh, past ? loPast : lo);
     }
-    const bl = beatLen(d);
-    g.fillStyle = 'rgba(255,255,255,0.13)';
-    for (let b = Math.ceil((L.time - span / 2) / bl); b * bl < L.time + span / 2; b++) { const x = w / 2 + ((b * bl - L.time) / span) * w; g.fillRect(x, row * lane + 2, 1, lane - 4); }
   });
-  g.fillStyle = '#fff'; g.fillRect(Math.round(w / 2) - 1, 0, 2, hh);
+  g.putImageData(img, 0, 0);
+  decks.forEach((d, i) => {
+    const t = deckTrack(d), L = live[d], top = i * lane, mid = top + lane / 2;
+    const spp = (seconds * (1 + jam().decks[d].pitch)) / w, t0 = L.time - center * spp, xOf = (s: number): number => (s - t0) / spp;
+    if (t) {
+      // Beat grid: bars long and bright, beats short and dim, at the top and bottom of the lane.
+      const bl = beatLen(d), bars = new Path2D(), beats = new Path2D();
+      for (let n = Math.ceil(t0 / bl); n * bl < t0 + w * spp; n++) {
+        const x = xOf(n * bl), isBar = ((n % 4) + 4) % 4 === 0, p = isBar ? bars : beats;
+        p.rect(x, top + 1, isBar ? 1.5 : 1, isBar ? 6 : 4); p.rect(x, top + lane - (isBar ? 7 : 5), isBar ? 1.5 : 1, isBar ? 6 : 4);
+      }
+      g.fillStyle = 'rgba(255,255,255,0.75)'; g.fill(bars);
+      g.fillStyle = 'rgba(255,255,255,0.28)'; g.fill(beats);
+      if (L.loopIn != null && L.loopOut != null) { g.fillStyle = L.loop ? 'rgba(74,222,128,0.22)' : 'rgba(255,255,255,0.08)'; g.fillRect(xOf(L.loopIn), top, xOf(L.loopOut) - xOf(L.loopIn), lane); }
+      g.fillStyle = '#ffd60a'; g.fillRect(xOf(jam().decks[d].cues[0] ?? 0), top, 1.5, lane);
+    }
+    if (i > 0) { g.fillStyle = 'rgba(255,255,255,0.08)'; g.fillRect(0, top, w, 1); }
+    g.fillStyle = 'rgba(255,255,255,0.35)'; g.font = 'bold 11px Inter, Arial';
+    if (!compact) g.fillText(d, 4, top + 11);
+    else if (t?.kind === 'yt' && !L.duration) { g.fillStyle = 'rgba(255,255,255,0.5)'; g.fillText('Loading from YouTube…', 6, mid + 4); }
+  });
+  g.fillStyle = '#ffffff'; g.fillRect(center - 1, 0, 2, h);
+  g.beginPath(); g.moveTo(center - 5, 0); g.lineTo(center + 5, 0); g.lineTo(center, 6); g.moveTo(center - 5, h); g.lineTo(center + 5, h); g.lineTo(center, h - 6); g.fill();
 }
-/** The whole song, for seeking (AIHub's OverviewWave). */
+/** The whole song, for seeking (AIHub's OverviewWave): played part bright, the rest dim. */
 function paintOverview(cv: HTMLCanvasElement | null, d: D): void {
   if (!cv) return;
-  const g = sizeCanvas(cv); if (!g) return;
-  const w = cv.clientWidth, hh = cv.clientHeight, t = deckTrack(d), L = live[d];
-  g.clearRect(0, 0, w, hh);
-  g.fillStyle = '#08090b'; g.fillRect(0, 0, w, hh);
+  const f = sizeCanvas(cv); if (!f) return;
+  const { g, w, h } = f, t = deckTrack(d), L = live[d];
+  g.clearRect(0, 0, w, h);
   if (!t) return;
-  const p = L.duration ? Math.min(1, L.time / L.duration) : 0, pk = t.kind === 'file' ? files.get(t.id)?.peaks : undefined;
-  if (pk) for (let x = 0; x < w; x++) { const v = pk[Math.floor((x / w) * pk.length)] * (hh / 2); g.fillStyle = x / w < p ? COLORS[d] : '#6b7280'; g.fillRect(x, hh / 2 - v, 1, v * 2 || 1); }
-  else { g.fillStyle = '#374151'; g.fillRect(0, hh / 2 - 1.5, w, 3); g.fillStyle = COLORS[d]; g.fillRect(0, hh / 2 - 1.5, w * p, 3); }
-  for (const c of jam().decks[d].cues) if (c != null && L.duration) { g.fillStyle = '#fbbf24'; g.fillRect((c / L.duration) * w, 0, 2, hh); }
-  if (L.loopIn != null && L.loopOut != null && L.duration) { g.fillStyle = 'rgba(74,222,128,0.35)'; g.fillRect((L.loopIn / L.duration) * w, 0, ((L.loopOut - L.loopIn) / L.duration) * w, hh); }
-  g.fillStyle = '#fff'; g.fillRect(Math.round(p * w), 0, 2, hh);
+  const dur = L.duration || t.duration, env = envFor(t, dur);
+  if (!env || !dur) return;
+  const head = Math.min(1, L.time / dur) * w, col = DECK_COLORS[d];
+  for (let x = 0; x < w; x++) {
+    const f0 = Math.floor((x / w) * env.amp.length), f1 = Math.max(f0 + 1, Math.floor(((x + 1) / w) * env.amp.length));
+    let a = 0, l = 0;
+    for (let q = f0; q < f1 && q < env.amp.length; q++) { if (env.amp[q]! > a) a = env.amp[q]!; if (env.low[q]! > l) l = env.low[q]!; }
+    const ah = Math.max(0.5, (a * h) / 2);
+    g.globalAlpha = x < head ? 1 : 0.45;
+    g.fillStyle = col.hi; g.fillRect(x, h / 2 - ah, 1, ah * 2);
+    if (l * a > 0.05) { g.fillStyle = col.lo; g.fillRect(x, h / 2 - (l * a * h) / 2, 1, l * a * h); }
+  }
+  g.globalAlpha = 1;
+  for (const c of jam().decks[d].cues) if (c != null) { g.fillStyle = '#ffd60a'; g.fillRect((c / dur) * w, 0, 1.5, h); }
+  if (L.loopIn != null && L.loopOut != null) { g.fillStyle = 'rgba(74,222,128,0.35)'; g.fillRect((L.loopIn / dur) * w, 0, ((L.loopOut - L.loopIn) / dur) * w, h); }
+  g.fillStyle = '#fff'; g.fillRect(head - 1, 0, 2, h);
 }
 
 // ---------------------------------------------------------------- top bar (TopBar, CpuMeter, SandboxBar, SamplerBank, NowPlaying)

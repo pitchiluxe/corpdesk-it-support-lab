@@ -1043,3 +1043,12 @@ hr.page-break{border:0;border-top:2px dashed #b5b5b5;margin:28px 0}
 .pen-mode{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 10px;border:1px solid var(--ia-line,#d1d1d1);border-radius:6px;background:transparent;color:inherit;font:12px var(--ia-font,"Segoe UI",sans-serif);white-space:nowrap;cursor:pointer}
 .pen-mode.drawing{background:var(--ia-accent,#0f6cbd);border-color:var(--ia-accent,#0f6cbd);color:var(--ia-accent-ink,#fff)}
 @media (max-width:760px){.pen-bar{flex-wrap:wrap;max-width:calc(100vw - 16px)}}
+/* ---- Dark mode: inline colours apps set in code (the generated layer covers stylesheets: itlab/darkmode.ts) ---- */
+html[data-theme=dark] .corp-aduc{background:#202020!important}
+html[data-theme=dark] .app-body :is([style*="background: rgb(255, 255, 255)"],[style*="background:#fff;"],[style*="background:#fff\""],[style*="background:white"],[style*="background-color: rgb(255, 255, 255)"]):not(.word-page,.word-page *,.ppt-slide,.ppt-slide *,.cert,.cert *){background:#202020!important}
+html[data-theme=dark] .app-body :is([style*="color:#777"],[style*="color: #777"],[style*="color:#7b8897"],[style*="color:#666"],[style*="color:#555"],[style*="color: rgb(119, 119, 119)"],[style*="color: rgb(34, 34, 34)"],[style*="color: rgb(51, 51, 51)"],[style*="color: rgb(68, 68, 68)"],[style*="color: rgb(85, 85, 85)"],[style*="color: rgb(96, 96, 96)"],[style*="color: rgb(102, 102, 102)"],[style*="color: rgb(110, 110, 110)"],[style*="color: rgb(112, 112, 112)"],[style*="color: rgb(117, 117, 117)"],[style*="color: rgb(128, 128, 128)"],[style*="color:#333"],[style*="color:#444"],[style*="color:#888"]):not(.word-page *,.ppt-slide *){color:#b8b8b8!important}
+html[data-theme=dark] .settings-avatar{color:#d6e6fb!important}
+/* Documents stay paper: dark ink on the Word page and slides, as Office does in dark mode. */
+html[data-theme=dark] .app-body .word-page{color:#1b1b1b}
+html[data-theme=dark] .app-body .word-page :is(h1,h2,h3,h4,b,strong,label,p,li,td,th,small,span){color:inherit}
+html.ia-native .lk-web{display:none!important}
