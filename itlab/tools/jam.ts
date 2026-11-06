@@ -1024,18 +1024,29 @@ const STEMS: { k: Stem; label: string; color: string }[] = [
   { k: 'vocal', label: 'Vocal', color: '#22c55e' }, { k: 'instru', label: 'Instru', color: '#f97316' }, { k: 'bass', label: 'Bass', color: '#ef4444' },
   { k: 'kick', label: 'Kick', color: '#3b82f6' }, { k: 'hihat', label: 'HiHat', color: '#38bdf8' },
 ];
+/**
+ * YouTube keeps its audio inside its own player, so stems, effects, filter and
+ * EQ cannot reach a YouTube deck. The controls stay live (their settings apply
+ * to the next song from the computer) and say so, rather than graying out.
+ */
+let ytNoteAt = 0;
+function noteYt(d: D): void {
+  if (deckTrack(d)?.kind !== 'yt' || performance.now() - ytNoteAt < 6000) return;
+  ytNoteAt = performance.now();
+  toast('Stems, effects, filter and EQ work on songs from your computer. YouTube plays its sound inside its own player; volume, crossfader, pitch, loops and cues still work.');
+}
 function deckPads(d: D): HTMLElement {
   const ds = jam().decks[d], t = deckTrack(d), L = live[d];
   const full = !t || t.kind === 'file';
   const s = ds.stems;
-  const fx = (): void => { applyFx(d); save(); };
+  const fx = (): void => { noteYt(d); applyFx(d); save(); };
   const stemBtn = (x: typeof STEMS[number]): HTMLElement => h('button', { type: 'button', class: `dj-stem ${s[x.k] ? 'dj-stem-on' : ''}`, style: `--stem:${x.color}`, title: s[x.k] ? `Mute ${x.label}` : `Bring back ${x.label}`, onClick: () => { s[x.k] = !s[x.k]; fx(); } }, x.label, h('i'));
   const acapella = s.vocal && !s.instru, instrumental = !s.vocal && s.instru;
   const loopLabel = ds.loopBeats >= 1 ? String(ds.loopBeats) : `1/${Math.round(1 / ds.loopBeats)}`;
   const relen = (): void => { if (L.loop && L.loopIn != null) L.loopOut = L.loopIn + ds.loopBeats * beatLen(d); };
   const select = h('select', { class: 'dj-lcd dj-fx-select', 'aria-label': 'Effect' }, (Object.keys(FX_LABELS) as Fx[]).map((k) => h('option', { value: k, selected: ds.fxType === k }, FX_LABELS[k]))) as HTMLSelectElement;
   select.addEventListener('change', () => { ds.fxType = select.value as Fx; fx(); });
-  return dropTarget(h('div', { class: `dj-pads dj-panel ${d === 'B' ? 'dj-mirror' : ''} ${full ? '' : 'dj-limited'}`, title: full ? null : 'This YouTube video plays directly from YouTube, so stems and effects cannot reach it' },
+  return dropTarget(h('div', { class: `dj-pads dj-panel ${d === 'B' ? 'dj-mirror' : ''} `, title: full ? null : 'YouTube song: stems and effects apply to songs from your computer; hot cues and loops work here' },
     h('div', { class: 'dj-section dj-stems' },
       h('div', { class: 'dj-section-title' }, 'STEMS'),
       h('div', { class: 'dj-stem-grid' },
@@ -1047,14 +1058,14 @@ function deckPads(d: D): HTMLElement {
     h('div', { class: 'dj-pads-body' },
       h('div', { class: 'dj-col dj-hotcues' },
         ds.cues.map((c, i) => { const b = h('button', { type: 'button', class: `dj-pad ${c != null ? `dj-pad-set dj-pad-${i}` : ''}`, title: c != null ? `Hot cue ${i + 1} at ${fmtTime(c)} — right-click to clear` : `Set hot cue ${i + 1}`, onClick: () => hotCue(d, i) }, c != null ? String(i + 1) : ''); b.addEventListener('contextmenu', (e) => { e.preventDefault(); ds.cues[i] = null; save(); }); return b; }),
-        knob({ value: ds.filter, onChange: (v) => { ds.filter = v; applyFx(d); }, label: 'FILTER', size: 36, color: '#a855f7', title: 'Filter — left low-pass, right high-pass' })),
+        knob({ value: ds.filter, onChange: (v) => { ds.filter = v; noteYt(d); applyFx(d); }, label: 'FILTER', size: 36, color: '#a855f7', title: 'Filter — left low-pass, right high-pass' })),
       h('div', { class: 'dj-col dj-grow' },
         h('div', { class: 'dj-section' },
           h('div', { class: 'dj-fx-row' }, select),
           h('div', { class: 'dj-fx-row' },
             led('ON', ds.fx.on, 'orange', () => { ds.fx.on = !ds.fx.on; fx(); }, 'dj-big'),
-            knob({ value: ds.fx.str, onChange: (v) => { ds.fx.str = v; applyFx(d); }, label: 'STR', center: 0, def: 0.6, color: '#f97316', title: 'Effect strength' }),
-            knob({ value: ds.fx.spd, onChange: (v) => { ds.fx.spd = v; applyFx(d); }, label: 'SPD', center: 0, def: 0.4, color: '#f97316', title: ds.fxType === 'echo' ? 'Echo length (beats)' : 'Speed' }))),
+            knob({ value: ds.fx.str, onChange: (v) => { ds.fx.str = v; noteYt(d); applyFx(d); }, label: 'STR', center: 0, def: 0.6, color: '#f97316', title: 'Effect strength' }),
+            knob({ value: ds.fx.spd, onChange: (v) => { ds.fx.spd = v; noteYt(d); applyFx(d); }, label: 'SPD', center: 0, def: 0.4, color: '#f97316', title: ds.fxType === 'echo' ? 'Echo length (beats)' : 'Speed' }))),
         h('div', { class: 'dj-section dj-loop' },
           h('div', { class: 'dj-section-title' }, 'LOOP'),
           h('div', { class: 'dj-loop-grid' },
@@ -1155,8 +1166,8 @@ function turntable(d: D): HTMLElement {
 // ---------------------------------------------------------------- mixer
 function channel(d: D): HTMLElement {
   const ds = jam().decks[d], full = deckTrack(d)?.kind !== 'yt';
-  const set = (): void => applyFx(d);
-  return h('div', { class: `dj-ch ${full ? '' : 'dj-limited'}`, title: full ? null : 'This YouTube video plays directly — only volume and the crossfader reach it' },
+  const set = (): void => { noteYt(d); applyFx(d); };
+  return h('div', { class: 'dj-ch', title: full ? null : 'YouTube song: EQ and gain apply to songs from your computer; the fader and crossfader work here' },
     knob({ value: ds.gain, onChange: (v) => { ds.gain = v; set(); }, label: 'GAIN', size: 24, color: '#e5e7eb', title: 'Trim ±12 dB' }),
     (['high', 'mid', 'low'] as Band[]).map((b) => knob({ value: ds.eq[b], onChange: (v) => { ds.eq[b] = v; set(); }, label: b.toUpperCase(), size: 26, color: ds.eq[b] < 0.5 ? '#ef4444' : '#22c55e', title: `${b.toUpperCase()} EQ — full left kills the band` })));
 }

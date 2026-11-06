@@ -3311,11 +3311,18 @@ Authentication-Results: spf=pass smtp.mailfrom=${DOMAIN}; dkim=pass header.d=${D
     { k: "kick", label: "Kick", color: "#3b82f6" },
     { k: "hihat", label: "HiHat", color: "#38bdf8" }
   ];
+  var ytNoteAt = 0;
+  function noteYt(d) {
+    if (deckTrack(d)?.kind !== "yt" || performance.now() - ytNoteAt < 6e3) return;
+    ytNoteAt = performance.now();
+    toast("Stems, effects, filter and EQ work on songs from your computer. YouTube plays its sound inside its own player; volume, crossfader, pitch, loops and cues still work.");
+  }
   function deckPads(d) {
     const ds = jam().decks[d], t = deckTrack(d), L = live2[d];
     const full = !t || t.kind === "file";
     const s = ds.stems;
     const fx = () => {
+      noteYt(d);
       applyFx(d);
       save();
     };
@@ -3335,7 +3342,7 @@ Authentication-Results: spf=pass smtp.mailfrom=${DOMAIN}; dkim=pass header.d=${D
     });
     return dropTarget(h(
       "div",
-      { class: `dj-pads dj-panel ${d === "B" ? "dj-mirror" : ""} ${full ? "" : "dj-limited"}`, title: full ? null : "This YouTube video plays directly from YouTube, so stems and effects cannot reach it" },
+      { class: `dj-pads dj-panel ${d === "B" ? "dj-mirror" : ""} `, title: full ? null : "YouTube song: stems and effects apply to songs from your computer; hot cues and loops work here" },
       h(
         "div",
         { class: "dj-section dj-stems" },
@@ -3378,6 +3385,7 @@ Authentication-Results: spf=pass smtp.mailfrom=${DOMAIN}; dkim=pass header.d=${D
           }),
           knob({ value: ds.filter, onChange: (v) => {
             ds.filter = v;
+            noteYt(d);
             applyFx(d);
           }, label: "FILTER", size: 36, color: "#a855f7", title: "Filter — left low-pass, right high-pass" })
         ),
@@ -3397,10 +3405,12 @@ Authentication-Results: spf=pass smtp.mailfrom=${DOMAIN}; dkim=pass header.d=${D
               }, "dj-big"),
               knob({ value: ds.fx.str, onChange: (v) => {
                 ds.fx.str = v;
+                noteYt(d);
                 applyFx(d);
               }, label: "STR", center: 0, def: 0.6, color: "#f97316", title: "Effect strength" }),
               knob({ value: ds.fx.spd, onChange: (v) => {
                 ds.fx.spd = v;
+                noteYt(d);
                 applyFx(d);
               }, label: "SPD", center: 0, def: 0.4, color: "#f97316", title: ds.fxType === "echo" ? "Echo length (beats)" : "Speed" })
             )
@@ -3603,10 +3613,13 @@ Authentication-Results: spf=pass smtp.mailfrom=${DOMAIN}; dkim=pass header.d=${D
   }
   function channel(d) {
     const ds = jam().decks[d], full = deckTrack(d)?.kind !== "yt";
-    const set = () => applyFx(d);
+    const set = () => {
+      noteYt(d);
+      applyFx(d);
+    };
     return h(
       "div",
-      { class: `dj-ch ${full ? "" : "dj-limited"}`, title: full ? null : "This YouTube video plays directly — only volume and the crossfader reach it" },
+      { class: "dj-ch", title: full ? null : "YouTube song: EQ and gain apply to songs from your computer; the fader and crossfader work here" },
       knob({ value: ds.gain, onChange: (v) => {
         ds.gain = v;
         set();
