@@ -4,7 +4,7 @@
     <UseWindowsForms>true</UseWindowsForms><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>
     <TargetPlatformMoniker>Windows,Version=7.0</TargetPlatformMoniker><TargetPlatformDisplayName>Windows</TargetPlatformDisplayName>
     <AssemblyName>CorpDesk</AssemblyName><RootNamespace>CorpDesk</RootNamespace>
-    <Version>1.0.3</Version><Product>CORP Desk IT Support Lab</Product><Company>Pitchiluxe</Company>
+    <Version>1.0.4</Version><Product>CORP Desk IT Support Lab</Product><Company>Pitchiluxe</Company>
     <Authors>Erick Omari</Authors><Copyright>Created by Erick Omari</Copyright>
     <ApplicationIcon>../dist/assets/corpdesk.ico</ApplicationIcon>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier><SelfContained>true</SelfContained>

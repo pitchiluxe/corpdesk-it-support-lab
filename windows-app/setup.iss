@@ -2,7 +2,7 @@
   #define AppOutput "publish"
 #endif
 #ifndef AppVersion
-  #define AppVersion "1.0.3"
+  #define AppVersion "1.0.4"
 #endif
 [Setup]
 AppId={{A24C625D-ECFD-4AF2-98D2-42EB1214BB42}
