@@ -63,6 +63,33 @@ export function panel(title: string, sub: string, onClose: () => void, tabs: str
     h('div', { class: 'ad2-panel-body', 'data-scroll': 'panel' }, ...kids));
 }
 
+export type MenuItem = { label: string; action?: () => void; disabled?: boolean; shortcut?: string; checked?: boolean } | '-';
+/** A classic Windows menu bar (File, Action, View, Help) whose menus open on click and work. */
+export function menubar(cls: string, menus: [string, () => MenuItem[]][]): HTMLElement {
+  const bar = h('div', { class: `${cls} ia-menubar`, role: 'menubar' });
+  let open: HTMLElement | null = null;
+  const close = (): void => { open?.remove(); open = null; bar.querySelectorAll('.on').forEach((b) => b.classList.remove('on')); document.removeEventListener('pointerdown', outside, true); };
+  const outside = (e: Event): void => { if (!open?.contains(e.target as Node) && !bar.contains(e.target as Node)) close(); };
+  for (const [label, items] of menus) {
+    const b = h('button', { class: 'ia-mtop', type: 'button', role: 'menuitem' }, label);
+    const show = (): void => {
+      close();
+      b.classList.add('on');
+      const list = h('div', { class: 'ia-mdrop', role: 'menu' }, items().map((it) => it === '-' ? h('div', { class: 'ia-msep' }) : h('button', { class: 'ia-mitem', type: 'button', role: 'menuitem', disabled: !!it.disabled, onClick: () => { close(); it.action?.(); } }, h('span', { class: 'ia-mcheck' }, it.checked ? '✓' : ''), h('span', null, it.label), h('span', { class: 'ia-mkey' }, it.shortcut ?? ''))));
+      const r = b.getBoundingClientRect();
+      list.style.left = `${r.left}px`;
+      list.style.top = `${r.bottom}px`;
+      document.body.appendChild(list);
+      open = list;
+      setTimeout(() => document.addEventListener('pointerdown', outside, true), 0);
+    };
+    b.addEventListener('click', () => (open && b.classList.contains('on') ? close() : show()));
+    b.addEventListener('pointerenter', () => { if (open && !b.classList.contains('on')) show(); });
+    bar.append(b);
+  }
+  return bar;
+}
+
 /** A modal dialog over the tool, resolved by one of its buttons. */
 export function dialog(title: string, body: Child, buttons: [string, () => boolean | void, ('primary' | '')?][]): void {
   const shade = h('div', { class: 'ia-shade' });

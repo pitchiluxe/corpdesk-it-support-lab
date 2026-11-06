@@ -66,6 +66,81 @@ export interface ItLab {
   completedModules: string[];
   /** When each lab incident was started (acceptance checks need actions after it). */
   started?: Record<number, string>;
+  /** The scenario rolled for each lab run (who, what, which variant). */
+  runs?: Record<number, Record<string, any>>;
+  /** Training passwords for the lab's accounts (listed in Desktop\Pwd.txt). */
+  passwords?: Record<string, string>;
+  /** Failed sign-ins since the last success, for lockout after 5. */
+  badLogons?: Record<string, number>;
+  /** Accounts created in the cloud only (Entra), not in Active Directory. */
+  cloudOnly?: { sam: string; name: string; dept: string; title: string; usageLocation: string; created: string; enabled: boolean }[];
+  /** Escalations raised from a ticket (e.g. to Security). */
+  escalated?: Record<number, string>;
+  /** Callers who failed verification (impersonation attempts). */
+  impostor?: Record<string, boolean>;
+  /** Name printed on the certificate. */
+  certName?: string;
+  certIssued?: string;
+}
+
+/** A seeded random generator, so a scenario can be replayed from its seed. */
+export function rng(seed: number): { next: () => number; int: (min: number, max: number) => number; pick: <T>(list: readonly T[]) => T; chance: (p: number) => boolean; shuffle: <T>(list: readonly T[]) => T[] } {
+  let t = seed >>> 0;
+  const next = (): number => { t = (t + 0x6d2b79f5) >>> 0; let x = t; x = Math.imul(x ^ (x >>> 15), x | 1); x ^= x + Math.imul(x ^ (x >>> 7), x | 61); return ((x ^ (x >>> 14)) >>> 0) / 4294967296; };
+  return {
+    next,
+    int: (min, max) => min + Math.floor(next() * (max - min + 1)),
+    pick: (list) => list[Math.floor(next() * list.length)]!,
+    chance: (p) => next() < p,
+    shuffle: (list) => { const a = [...list]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(next() * (i + 1)); [a[i], a[j]] = [a[j]!, a[i]!]; } return a; },
+  };
+}
+
+/** A password that meets CORP's domain policy (14+ characters, upper, lower, digit, symbol). */
+export function makePassword(r: ReturnType<typeof rng>): string {
+  const words = ['Harbor', 'Copper', 'Maple', 'Falcon', 'Cobalt', 'Summit', 'River', 'Lantern', 'Orchid', 'Granite', 'Willow', 'Comet', 'Juniper', 'Beacon'];
+  return `${r.pick(words)}-${r.pick(words).toLowerCase()}-${r.int(10, 99)}${r.pick(['!', '#', '$', '%', '?'])}${r.int(100, 999)}`;
+}
+
+/** Desktop\Pwd.txt: every lab account and its current training password. */
+export function writePwdFile(): void {
+  const s = state;
+  const L = lab();
+  const r = rng(Date.now());
+  L.passwords ||= {};
+  for (const u of s.users) L.passwords[u.sam] ||= makePassword(r);
+  const rows = [...s.users].sort((a: any, b: any) => a.sam.localeCompare(b.sam)).map((u: any) => `${u.sam.padEnd(12)} ${u.name.padEnd(20)} ${(L.passwords![u.sam] ?? '').padEnd(26)} ${!u.enabled ? 'Disabled' : u.locked ? 'Locked out' : 'Enabled'}`);
+  const cloud = (L.cloudOnly ?? []).map((c) => `${c.sam.padEnd(12)} ${c.name.padEnd(20)} ${(L.passwords![c.sam] ?? '').padEnd(26)} Cloud-only`);
+  const text = [
+    'CORP Desk training accounts (domain: CORP / corp.example.test)',
+    '================================================================',
+    'TRAINING ONLY. In a real job you never keep passwords in a file: use a password',
+    'manager, give temporary passwords over a verified channel, and let users set their own.',
+    '',
+    'Sign in as these users in Remote Desktop > Verify a sign-in. Five wrong passwords',
+    'lock the account (event 4740). Resets you make in ADUC, Microsoft 365 or at first',
+    'sign-in update this file.',
+    '',
+    `${'Logon'.padEnd(12)} ${'Name'.padEnd(20)} ${'Password'.padEnd(26)} State`,
+    `${'-----'.padEnd(12)} ${'----'.padEnd(20)} ${'--------'.padEnd(26)} -----`,
+    ...rows, ...cloud, '',
+    `Updated ${new Date().toLocaleString()}`,
+  ].join('\r\n');
+  s.files ||= {};
+  s.files[`C:\\Users\\${s.technician}\\Desktop\\Pwd.txt`] = text;
+}
+export function setLabPassword(sam: string, password: string): void { const L = lab(); (L.passwords ||= {})[sam] = password; (L.badLogons ||= {})[sam] = 0; writePwdFile(); }
+/** Check a sign-in; five failures in a row lock the account, as the domain policy says. */
+export function checkLabPassword(sam: string, password: string): 'ok' | 'bad' | 'locked' {
+  const L = lab();
+  const u = corpUser(sam);
+  if (!u) return 'bad';
+  const expected = (L.passwords ||= {})[u.sam];
+  if (!expected || expected === password) { (L.badLogons ||= {})[u.sam] = 0; return 'ok'; }
+  const n = ((L.badLogons ||= {})[u.sam] ?? 0) + 1;
+  L.badLogons[u.sam] = n;
+  if (n >= 5) { u.locked = true; log(4740, `${u.sam}: account locked out after ${n} bad passwords`); writePwdFile(); return 'locked'; }
+  return 'bad';
 }
 
 export const nowIso = (): string => new Date().toISOString();
@@ -132,5 +207,29 @@ export function lab(): ItLab {
   s.itlab = data;
   return data;
 }
-/** Directory users that have reached Microsoft 365 (Entra Connect sync). */
-export const cloudUsers = (): any[] => state.users.filter((u: any) => lab().synced.includes(u.sam));
+/** Everyone in the Microsoft 365 tenant: AD users that have synced, plus cloud-only accounts made in Entra. */
+export const cloudUsers = (): any[] => [...state.users.filter((u: any) => lab().synced.includes(u.sam)), ...(lab().cloudOnly ?? []).map(cloudView)];
+const cloudView = (c: any): any => Object.assign(c, { cloud: true, accountOptions: c.accountOptions ?? {}, groups: c.groups ?? [], path: '(cloud only)' });
+/** A tenant user by logon name, from Active Directory or cloud-only. */
+export const tenantUser = (sam: string): any => corpUser(sam) ?? (() => { const c = (lab().cloudOnly ?? []).find((x) => x.sam.toLowerCase() === String(sam).toLowerCase()); return c ? cloudView(c) : undefined; })();
+
+/** The welcome email from the hiring manager, addressed to the person doing the lab. */
+export function welcomeMail(): void {
+  const L = lab();
+  if (L.inbox.some((m) => m.id === 'm-hired')) return;
+  const name: string = state.technician || 'there';
+  const sam = name.toLowerCase().replace(/\s+/g, '.');
+  L.inbox.push({
+    id: 'm-hired', from: `it01@${DOMAIN}`, fromName: 'Alex Morgan (IT Lead)', to: `${sam}@${DOMAIN}`, received: new Date(Date.now() - 3600e3).toISOString(), read: false,
+    subject: `Welcome to CORP, ${name.split(' ')[0]}! Your first day on the Service Desk`,
+    headers: [`From: Alex Morgan <it01@${DOMAIN}>`, `To: ${sam}@${DOMAIN}`, `Authentication-Results: spf=pass smtp.mailfrom=${DOMAIN}; dkim=pass header.d=${DOMAIN}; dmarc=pass`].join('\n'),
+    body: [
+      `Hi ${name.split(' ')[0]},`, '',
+      'Welcome to CORP! I am delighted you accepted our offer for the IT Service Desk Analyst role. Here is what you need for your first days.', '',
+      'Your role', '- Tier 1 service desk for about 25 staff across HR, IT and Finance.', '- You own tickets from first contact to verified resolution, and you write notes a colleague could follow.', '- Your manager is me, Alex Morgan (it01). Sam Rivera (it02) is your buddy for the first month.', '',
+      'Your first week', '1. Open the IT Support Career Path on your desktop and work through the labs in order.', '2. Every request starts in the Service Desk. Never act on a phone call or an email alone: check the ticket and the approval.', '3. Verify every caller before you reset a password or MFA. If verification fails, change nothing and escalate to Security.', '4. Disable leavers, never delete them. Grant exactly what was approved, nothing more.', '',
+      'Your tools', '- Service Desk, Active Directory Users and Computers, Microsoft 365 admin center, Microsoft Entra admin center, Outlook (this shared mailbox), Services, Print Management, PowerShell, Event Viewer, Remote Desktop.', '- The Pwd file on your desktop lists the lab accounts\' training passwords for testing sign-ins.', '',
+      'We are glad you are here. Ask questions early and often.', '', 'Alex Morgan', 'IT Lead, CORP',
+    ].join('\n'),
+  });
+}

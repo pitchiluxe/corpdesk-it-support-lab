@@ -1,6 +1,7 @@
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
+const ytsearch = require('./ytsearch.cjs');
 const root = path.join(__dirname,'dist');
 const allowed = {'/':'index.html','/index.html':'index.html','/style.css':'style.css','/app.js':'app.js','/windows.css':'windows.css','/windows.js':'windows.js','/desktop.css':'desktop.css','/desktop.js':'desktop.js'};
 const mime={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8'};
@@ -21,6 +22,8 @@ function createHandler(ollamaFetch=fetch){return async(req,res)=>{
     const json=(status,data)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store',...cors});res.end(JSON.stringify(data));};
     if(req.method==='OPTIONS'){res.writeHead(204,{...cors,'Access-Control-Allow-Methods':'GET, POST, OPTIONS','Access-Control-Allow-Headers':'Content-Type','Access-Control-Allow-Private-Network':'true'});res.end();return;}
     try{
+      // Jam: YouTube search without an API key (ytsearch.cjs).
+      if(pathname==='/api/yt-search'&&req.method==='GET'){try{json(200,{results:await ytsearch.search(new URL(req.url,'http://localhost').searchParams.get('q'))});}catch(e){json(e.status===400?400:502,{error:e.status===400?e.message:'YouTube search is unavailable right now. Try again in a moment.'});}return;}
       if(pathname==='/api/models'&&req.method==='GET'){
         const upstream=await ollamaFetch('http://127.0.0.1:11434/api/tags',{signal:AbortSignal.timeout(10000)});
         if(!upstream.ok){json(502,{error:'Local Ollama is not ready.'});return;}

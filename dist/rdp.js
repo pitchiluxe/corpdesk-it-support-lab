@@ -50,7 +50,7 @@ function connectScreen() {
       <div class="rdp-actions"><button class="primary" id="rdpHelp" ${target ? '' : 'disabled'}>${target ? `Connect to ${E(target.machine)}` : 'Connect'}</button></div>
     </section>
     <section class="rdp-card"><h3>Verify a sign-in: test an account</h3>
-      <p class="muted">Sign in AS a directory account on ${TEST_HOST} (${TEST_IP}) to prove a reset, unlock or new account works. Real refusals: disabled, locked out, must change password.</p>
+      <p class="muted">Sign in AS a directory account on ${TEST_HOST} (${TEST_IP}) to prove a reset, unlock or new account works. Passwords are in Pwd.txt on your desktop. Real refusals: wrong password (5 locks the account), disabled, locked out, must change password.</p>
       <div class="rdp-actions"><button class="secondary" id="rdpVerify">Connect to ${TEST_HOST}</button></div>
     </section></div>`;
 }
@@ -115,9 +115,14 @@ function trySignIn(sam, password) {
   const u = user(sam);
   const refuse = (msg, status) => { log(4625, `${sam || '(blank)'}: logon failure on ${TEST_HOST} — ${status}`); error = msg; draw(); };
   if (!sam) { error = 'Type a user name.'; draw(); return; }
+  account = sam; // the sign-in screen keeps the user name after a refusal, as Windows does
   if (!u || !password) return refuse('The user name or password is incorrect. Try again.', 'unknown user name or bad password');
   if (!u.enabled) return refuse('Your account has been disabled. Please see your system administrator.', 'account disabled');
   if (u.locked) return refuse('The referenced account is currently locked out and may not be logged on to.', 'account locked out');
+  // Training passwords are in DesktopPwd.txt; five wrong ones lock the account, as the domain policy says.
+  const check = window.CorpDesk?.checkLabPassword ? window.CorpDesk.checkLabPassword(u.sam, password) : 'ok';
+  if (check === 'locked') return refuse('The referenced account is currently locked out and may not be logged on to.', 'bad password; account now locked out (5 attempts)');
+  if (check === 'bad') return refuse('The user name or password is incorrect. Try again.', 'bad password');
   account = u.sam;
   if (u.accountOptions?.mustChange) { error = ''; go('change'); return; }
   u.lastLogon = new Date().toISOString();
@@ -152,6 +157,7 @@ function bind() {
       if (p1.length < 14 || !/[A-Z]/.test(p1) || !/[a-z]/.test(p1) || !/[0-9]/.test(p1)) { error = 'Unable to update the password. The value provided for the new password does not meet the length, complexity, or history requirements of the domain.'; draw(); return; }
       const u = user(account);
       u.accountOptions ||= {}; u.accountOptions.mustChange = false; u.passwordLastSet = new Date().toISOString(); u.lastLogon = u.passwordLastSet;
+      window.CorpDesk?.setLabPassword?.(u.sam, p1);
       log(4723, `${u.sam}: changed own password at sign-in (no password stored)`);
       log(4624, `${u.sam}: logged on to ${TEST_HOST} (Remote Desktop, logon type 10)`);
       startSession(u.sam, TEST_HOST, 'verify');

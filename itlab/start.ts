@@ -31,7 +31,7 @@ let view: View = 'pinned';
 const prefs = (): any => (S().preferences ||= {});
 
 /** Windows' pinned order: the tools a service desk technician opens most. */
-const PINNED = ['tickets', 'directory', 'pathway', 'outlook', 'm365', 'entra', 'terminal', 'chrome', 'files', 'network', 'control', 'taskmanager', 'rdp', 'services', 'printmgmt', 'events', 'mentor', 'calculator', 'notepadpp', 'word', 'excel', 'lab'];
+const PINNED = ['tickets', 'directory', 'pathway', 'pwd', 'outlook', 'm365', 'entra', 'terminal', 'chrome', 'files', 'network', 'control', 'taskmanager', 'rdp', 'services', 'printmgmt', 'events', 'mentor', 'calculator', 'notepadpp', 'word', 'excel', 'jam', 'pen', 'lab'];
 
 const appIconSvg = (a: { icon: string }): string => a.icon;
 function appTile(a: { id: string; name: string; short: string; icon: string }, kind: 'tile' | 'row'): HTMLElement {
@@ -109,7 +109,7 @@ function power(kind: 'account' | 'power', anchor: HTMLElement): void {
   if (lockBtn) { lockBtn.className = 'st-fly'; lockBtn.replaceChildren(svg(ICON.lock, 16), 'Lock'); }
   flyout.replaceChildren(...(kind === 'account'
     ? [item(ICON.gear, 'Change account settings', () => { G.CorpDesk.settingsNavigate('Accounts'); hide(); }), ...(lockBtn ? [lockBtn] : []), signOut]
-    : [...(lockBtn ? [lockBtn] : []), signOut, item(ICON.restart, 'Restart', () => { save(); location.reload(); }), item(ICON.power, 'Shut down', () => { hide(); signOut.click(); })]));
+    : [...(lockBtn ? [lockBtn] : []), signOut, item(ICON.restart, 'Restart', () => { save(); location.reload(); }), item(ICON.power, 'Shut down', () => { hide(); signOut.click(); }), item(ICON.restart, 'Reset lab (start over)...', () => { hide(); G.CorpDesk?.resetLab?.(); })]));
   flyout.hidden = false;
   const r = anchor.getBoundingClientRect(), m = menu.getBoundingClientRect();
   flyout.style.left = kind === 'account' ? `${r.left - m.left}px` : '';

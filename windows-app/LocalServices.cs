@@ -25,6 +25,7 @@ internal sealed class LocalServices : IDisposable
     {
         try
         {
+            if(path.StartsWith("/api/yt-search?",StringComparison.Ordinal)||path=="/api/yt-search")return await YouTubeSearch(QueryValue(path,"q"));
             if(path=="/api/probe")return new(200,await Probe());
             if(path=="/api/models")return new(200,new{models=await Models()});
             if(path!="/api/chat")return new(404,new{error="Unknown native API route."});
@@ -44,5 +45,81 @@ internal sealed class LocalServices : IDisposable
         catch(KeyNotFoundException){return new(400,new{error="Missing chat fields."});}
         catch{return new(503,new{error="Local Ollama is unavailable. Start Ollama and choose a downloaded model."});}
     }
-    public void Dispose()=>client.Dispose();
+    // ------------------------------------------------------------ Jam: YouTube search without an API key
+    // The same approach as ytsearch.cjs (ported from AIHub DJ): read the result list YouTube embeds in
+    // its own search page as `ytInitialData`. Scraping breaks, so every step fails soft to fewer results.
+    private readonly HttpClient youtube=new(new HttpClientHandler{AutomaticDecompression=System.Net.DecompressionMethods.All}){Timeout=TimeSpan.FromSeconds(15)};
+    private static readonly System.Text.RegularExpressions.Regex VideoId=new("^[A-Za-z0-9_-]{11}$");
+    private static string QueryValue(string path,string name)
+    {
+        var q=path.IndexOf('?');if(q<0)return "";
+        foreach(var part in path[(q+1)..].Split('&')){var eq=part.IndexOf('=');var key=eq<0?part:part[..eq];if(key==name)return Uri.UnescapeDataString((eq<0?"":part[(eq+1)..]).Replace('+',' '));}
+        return "";
+    }
+    internal async Task<Reply> YouTubeSearch(string raw)
+    {
+        var query=System.Text.RegularExpressions.Regex.Replace(raw??"",@"\s+"," ").Trim();
+        if(query.Length==0||query.Length>120)return new(400,new{error="Type what to search for (up to 120 characters)."});
+        try
+        {
+            using var request=new HttpRequestMessage(HttpMethod.Get,"https://www.youtube.com/results?search_query="+Uri.EscapeDataString(query)+"&sp=EgIQAQ%253D%253D");
+            request.Headers.TryAddWithoutValidation("User-Agent","Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36");
+            request.Headers.TryAddWithoutValidation("Accept-Language","en-US,en;q=0.9");
+            request.Headers.TryAddWithoutValidation("Cookie","CONSENT=YES+cb; SOCS=CAI");
+            using var response=await youtube.SendAsync(request);
+            if(!response.IsSuccessStatusCode)return new(502,new{error="YouTube search is unavailable right now. Try again in a moment."});
+            var data=InitialData(await response.Content.ReadAsStringAsync());
+            var results=new List<object>();
+            if(data!=null){using var doc=JsonDocument.Parse(data);Collect(doc.RootElement,results,new HashSet<string>(),0);}
+            return new(200,new{results});
+        }
+        catch{return new(502,new{error="YouTube search is unavailable right now. Check the internet connection."});}
+    }
+    private static string? InitialData(string html)
+    {
+        foreach(var marker in new[]{"var ytInitialData = ","window[\"ytInitialData\"] = ","ytInitialData = "})
+        {
+            var at=html.IndexOf(marker,StringComparison.Ordinal);if(at<0)continue;
+            var start=html.IndexOf('{',at);if(start<0)continue;
+            int depth=0;bool inString=false,escaped=false;
+            for(var i=start;i<html.Length;i++)
+            {
+                var ch=html[i];
+                if(escaped){escaped=false;continue;}
+                if(ch=='\\'){escaped=true;continue;}
+                if(ch=='"'){inString=!inString;continue;}
+                if(inString)continue;
+                if(ch=='{')depth++;else if(ch=='}'&&--depth==0)return html.Substring(start,i-start+1);
+            }
+        }
+        return null;
+    }
+    private static string Text(JsonElement node,string name)
+    {
+        if(node.ValueKind!=JsonValueKind.Object||!node.TryGetProperty(name,out var n))return "";
+        if(n.ValueKind==JsonValueKind.String)return n.GetString()??"";
+        if(n.ValueKind!=JsonValueKind.Object)return "";
+        if(n.TryGetProperty("simpleText",out var s)&&s.ValueKind==JsonValueKind.String)return s.GetString()??"";
+        if(n.TryGetProperty("runs",out var runs)&&runs.ValueKind==JsonValueKind.Array)
+            return string.Concat(runs.EnumerateArray().Select(r=>r.ValueKind==JsonValueKind.Object&&r.TryGetProperty("text",out var t)&&t.ValueKind==JsonValueKind.String?t.GetString():""));
+        return "";
+    }
+    private static void Collect(JsonElement node,List<object> results,HashSet<string> seen,int depth)
+    {
+        if(depth>30||results.Count>=30)return;
+        if(node.ValueKind==JsonValueKind.Array){foreach(var item in node.EnumerateArray())Collect(item,results,seen,depth+1);return;}
+        if(node.ValueKind!=JsonValueKind.Object)return;
+        if(node.TryGetProperty("videoRenderer",out var v)&&v.ValueKind==JsonValueKind.Object&&v.TryGetProperty("videoId",out var idEl)&&idEl.ValueKind==JsonValueKind.String)
+        {
+            var id=idEl.GetString()??"";var duration=Text(v,"lengthText");var title=Text(v,"title").Trim();
+            // No length means a live stream or a premiere: not something a deck can play through.
+            if(VideoId.IsMatch(id)&&duration.Length>0&&title.Length>0&&seen.Add(id))
+            {
+                var channel=Text(v,"ownerText");if(channel.Length==0)channel=Text(v,"longBylineText");
+                results.Add(new{id,title,channel,duration,views=Text(v,"shortViewCountText"),thumbnail=$"https://i.ytimg.com/vi/{id}/hqdefault.jpg",url=$"https://www.youtube.com/watch?v={id}"});
+            }
+        }
+        foreach(var p in node.EnumerateObject())if(p.Name!="videoRenderer")Collect(p.Value,results,seen,depth+1);
+    }
+    public void Dispose(){client.Dispose();youtube.Dispose();}
 }

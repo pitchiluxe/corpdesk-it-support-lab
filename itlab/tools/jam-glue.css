@@ -1,0 +1,37 @@
+/* ---- Jam: CORP Desk glue around the AIHub console (fit, spin, YouTube dock) ---- */
+.ia[data-tool="jam"]{position:relative;padding:0;height:100%;overflow:hidden;background:#1b1c1f}
+.jam-dj{position:absolute;inset:0}
+.jam-dj .jam-layer{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.jam-dj .dj-platter{width:220px;height:220px}
+/* Only "now playing" gives way when the top bar is tight, as in AIHub. */
+.jam-dj .dj-top>*:not(.dj-nowplaying){flex-shrink:0}
+.jam-dj .dj-top-automix{white-space:nowrap}
+/* 33 1/3 rpm: one turn in 1.8 s; paused where it stopped, like a record under a hand. */
+.jam-dj .dj-disc{transform-origin:50% 50%;will-change:transform;animation:jam-record 1.8s linear infinite;animation-play-state:paused}
+.jam-dj .dj-platter.jam-spinning .dj-disc{animation-play-state:running}
+@keyframes jam-record{to{transform:rotate(360deg)}}
+.jam-dj .dj-video{position:relative}
+.jam-dj .jam-video-idle{position:absolute;inset:0;display:grid;place-items:center;padding:10px;color:rgba(255,255,255,.35);font:600 11px Inter,"Segoe UI",Arial,sans-serif;text-align:center;pointer-events:none}
+.jam-dj .dj-row.dj-limited,.jam-dj .dj-pfl:disabled{opacity:.45}
+.jam-dj .dj-spin{animation:jam-spin 1s linear infinite}
+.jam-dj svg{flex:none}
+/* YouTube players: a dock on <body>, laid over the video monitor or shrunk to a mini player. */
+.jam-dock{position:fixed;left:0;top:0;width:0;height:0;z-index:1500}
+.jam-video-slot{position:fixed;overflow:hidden;background:#000;border-radius:3px}
+.jam-video-slot iframe{width:100%;height:100%;border:0;display:block}
+.jam-slot-label{display:none}
+.jam-video-slot.mini{z-index:1900;box-shadow:0 10px 30px #000a;border:1px solid #ffffff33;border-radius:7px}
+.jam-video-slot.mini .jam-slot-label{display:block;position:absolute;left:6px;top:6px;padding:2px 6px;border-radius:4px;background:#000b;color:#fff;font:800 9px/1.3 "Segoe UI",sans-serif;letter-spacing:.12em;cursor:pointer}
+.jam-cover{display:none;position:absolute;inset:0;background:#0b0c0e;color:#e8ecf1;padding:10px;flex-direction:column;align-items:center;justify-content:center;gap:5px;text-align:center;font:12px/1.4 "Segoe UI",sans-serif}
+.jam-cover.on{display:flex}
+.jam-cover b{font-size:12.5px}
+.jam-cover p{margin:0;color:#aab1ba;max-width:300px;font-size:11px}
+.jam-cover div{display:flex;flex-wrap:wrap;justify-content:center;gap:5px}
+.jam-cover button{border:0;border-radius:4px;height:24px;padding:0 9px;background:#e8ecf1;color:#1d1e21;font:700 11px/1 "Segoe UI",sans-serif;cursor:pointer}
+.jam-cover button:first-child{background:linear-gradient(180deg,#e11d2e,#a50f1c);color:#fff}
+.mini .jam-cover p,.mini .jam-cover div{display:none}
+/* "Jam A / Jam B" on YouTube pages in the lab's Chrome */
+.jam-send{display:inline-flex;gap:4px;margin-left:6px;flex:none}
+.jam-send button{border:0;border-radius:14px;height:28px;padding:0 11px;background:linear-gradient(180deg,#e11d2e,#a50f1c);color:#fff;font:700 12px/1 "Segoe UI",sans-serif;cursor:pointer;white-space:nowrap}
+.jam-send button+button{background:linear-gradient(180deg,#5fdcff,#1fb4dd);color:#062230}
+@media (prefers-reduced-motion:reduce){.jam-dj .dj-disc{animation-duration:6s}}

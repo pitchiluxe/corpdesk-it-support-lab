@@ -3,7 +3,7 @@
  * it: accounts are created in Active Directory and reach the cloud with Entra
  * Connect sync; licences, mailboxes and sign-in are managed here.
  */
-import { DOMAIN, S, cloudUsers, corpUser, evidence, lab, log, nowIso, save, toast } from '../corp.ts';
+import { DOMAIN, S, cloudUsers, evidence, lab, log, nowIso, save, setLabPassword, tenantUser, toast } from '../corp.ts';
 import { h, fmtDate } from '../dom.ts';
 import { I, adminShell, badge, btn, card, cmd, cmdbar, dialog, kv, note, page, panel, table } from '../ui.ts';
 import { registerTool } from '../host.ts';
@@ -33,7 +33,7 @@ export function deltaSync(): { added: string[]; removed: string[] } {
 
 function ensureMailbox(sam: string): void {
   const L = lab();
-  const u = corpUser(sam);
+  const u = tenantUser(sam);
   if (u && !L.mailboxes.some((m) => m.owner === sam)) L.mailboxes.push({ address: `${sam}@${DOMAIN}`, name: u.name, type: 'user', owner: sam, fullAccess: [], sendAs: [], sizeGb: 0.1, quotaGb: 50 });
 }
 const assigned = (): number => Object.values(lab().licenses).filter((v) => v === LICENSE).length;
@@ -45,12 +45,12 @@ function pickUser(title: string, onPick: (sam: string) => void): void {
 
 function perms(list: string[], label: string, onAdd: (sam: string) => void, onRemove: (sam: string) => void): HTMLElement {
   return h('div', { class: 'ad2-perm' }, h('div', { class: 'ad2-perm-head' }, h('b', null, label), btn('+ Add permissions', () => pickUser(`Add ${label.toLowerCase()} permission`, onAdd))),
-    list.length ? h('ul', null, list.map((sam) => h('li', null, h('span', null, corpUser(sam)?.name ?? sam, h('small', null, ` ${sam}@${DOMAIN}`)), h('button', { class: 'ad2-link', type: 'button', onClick: () => onRemove(sam) }, 'Remove')))) : h('p', { class: 'ad2-muted' }, 'No one has this permission.'));
+    list.length ? h('ul', null, list.map((sam) => h('li', null, h('span', null, tenantUser(sam)?.name ?? sam, h('small', null, ` ${sam}@${DOMAIN}`)), h('button', { class: 'ad2-link', type: 'button', onClick: () => onRemove(sam) }, 'Remove')))) : h('p', { class: 'ad2-muted' }, 'No one has this permission.'));
 }
 
 function userPanel(sam: string): HTMLElement {
   const L = lab();
-  const u = corpUser(sam);
+  const u = tenantUser(sam);
   const close = (): void => { selected = null; save(); };
   if (!u) return panel('User not found', '', close, null, null, null, note('This account no longer exists in Active Directory. Run a delta sync to remove it.'));
   const blocked = L.blocked.includes(sam);
@@ -58,7 +58,7 @@ function userPanel(sam: string): HTMLElement {
   let body: HTMLElement;
   if (tab === 'Account') {
     body = h('div', null,
-      kv([['Username', `${sam}@${DOMAIN}`], ['Display name', u.name], ['Department', u.dept], ['Job title', u.title || '—'], ['Source', 'Windows Server AD (synced with Entra Connect)'], ['Last password change', u.passwordLastSet ? fmtDate(u.passwordLastSet) : 'Not recorded']]),
+      kv([['Username', `${sam}@${DOMAIN}`], ['Display name', u.name], ['Department', u.dept], ['Job title', u.title || '—'], ['Source', u.cloud ? 'Cloud only (created in Microsoft Entra)' : 'Windows Server AD (synced with Entra Connect)'], ['Last password change', u.passwordLastSet ? fmtDate(u.passwordLastSet) : 'Not recorded']]),
       card('Sign-in', h('p', { class: 'ad2-muted' }, blocked ? 'This user is blocked from signing in to Microsoft 365.' : 'This user can sign in to Microsoft 365.'),
         h('div', { class: 'ad2-row' }, btn(blocked ? 'Unblock sign-in' : 'Block sign-in', () => { L.blocked = blocked ? L.blocked.filter((x) => x !== sam) : [...L.blocked, sam]; log(blocked ? 6005 : 6004, `${sam}: Microsoft 365 sign-in ${blocked ? 'allowed' : 'blocked'}`); save(); }, blocked ? '' : 'primary'),
           btn('Sign out of all sessions', () => { L.sessionsRevoked[sam] = nowIso(); log(6010, `${sam}: all Microsoft 365 sessions revoked`); evidence('revoke'); save(); toast(`${u.name} will be signed out of every app within the hour.`); }))),
@@ -69,7 +69,7 @@ function userPanel(sam: string): HTMLElement {
           dialog(`Reset password for ${u.name}`, h('div', null, h('label', { class: 'ad2-field' }, 'Temporary password (14+ characters, upper, lower, digit)', pw), h('label', { class: 'ad2-check' }, must, 'Require this user to change their password when they first sign in'), h('p', { class: 'ad2-muted' }, 'Give the temporary password to the user over a verified channel, never in the ticket.')), [['Reset password', () => {
             const v = pw.value;
             if (v.length < 14 || !/[A-Z]/.test(v) || !/[a-z]/.test(v) || !/[0-9]/.test(v)) { toast('The password does not meet the domain policy (14+ characters with upper, lower and a digit).'); return false; }
-            u.accountOptions ||= {}; u.accountOptions.mustChange = must.checked; u.passwordLastSet = nowIso();
+            u.accountOptions ||= {}; u.accountOptions.mustChange = must.checked; u.passwordLastSet = nowIso(); setLabPassword(sam, v);
             log(4724, `${sam}: password reset from Microsoft 365 admin center (written back to AD; no password stored)`);
             save();
           }, 'primary'], ['Cancel', () => undefined]]);
@@ -127,13 +127,13 @@ function body(): { page: HTMLElement; panel: HTMLElement | null } {
       panel: selected ? userPanel(selected) : null,
       page: page('Active users',
         note('Hybrid organization: create and delete accounts in Active Directory, then run a delta sync. Manage licences, mailboxes and sign-in here.'),
-        cmdbar(cmd(I.user, 'Add a user', () => toast('This organization syncs from Active Directory. Create the account in Active Directory Users and Computers, then run a delta sync.')), cmd(I.sync, 'Run delta sync', () => { const r = deltaSync(); toast(`Delta sync complete: ${r.added.length} added, ${r.removed.length} removed.`); }), cmd(I.refresh, 'Refresh', () => save())),
+        cmdbar(cmd(I.user, 'Add a user', () => toast('Staff accounts are created in Active Directory and synced. For a cloud-only account (contractor, shared device, service account), use Microsoft Entra admin center > Users > New user.')), cmd(I.sync, 'Run delta sync', () => { const r = deltaSync(); toast(`Delta sync complete: ${r.added.length} added, ${r.removed.length} removed.`); }), cmd(I.refresh, 'Refresh', () => save())),
         table<any>([
           ['Display name', (u) => h('b', null, u.name)],
           ['Username', (u) => `${u.sam}@${DOMAIN}`],
           ['Licences', (u) => L.licenses[u.sam] ?? h('span', { class: 'ad2-muted' }, 'Unlicensed')],
           ['Sign-in', (u) => (L.blocked.includes(u.sam) ? badge('Blocked', 'bad') : badge('Allowed', 'ok'))],
-          ['Sync status', () => badge('Synced from on-premises', 'info')],
+          ['Sync status', (u) => (u.cloud ? badge('Cloud only', '') : badge('Synced from on-premises', 'info'))],
         ], users, { onRow: (u) => { selected = u.sam; tab = 'Account'; save(); }, selected: (u) => u.sam === selected })),
     };
   }

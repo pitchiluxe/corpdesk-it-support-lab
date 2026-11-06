@@ -288,7 +288,7 @@ export function runCapability(_w: World, capId: string, a: Record<string, string
         if (a.UserPrincipalName) u.upn = a.UserPrincipalName.includes('@') ? a.UserPrincipalName : `${a.UserPrincipalName}@${DOMAIN}`;
         u.accountOptions ||= {};
         u.accountOptions.mustChange = a.ChangePasswordAtLogon === undefined ? true : bool(a.ChangePasswordAtLogon);
-        if (a.AccountPassword) { u.passwordLastSet = new Date().toISOString(); }
+        if (a.AccountPassword) { u.passwordLastSet = new Date().toISOString(); (globalThis as any).CorpDesk?.setLabPassword?.(u.sam, a.AccountPassword); }
       }
       return `Created ${a.SamAccountName}`;
     }
@@ -314,7 +314,9 @@ export function runCapability(_w: World, capId: string, a: Record<string, string
       u.accountOptions ||= {};
       u.accountOptions.mustChange = a.ChangePasswordAtLogon === undefined ? true : bool(a.ChangePasswordAtLogon);
       u.passwordLastSet = new Date().toISOString();
-      log(4724, `${u.sam}: password-reset workflow completed (no password stored)`);
+      // The lab keeps training passwords (DesktopPwd.txt) so sign-ins can be tested in Remote Desktop.
+      (globalThis as any).CorpDesk?.setLabPassword?.(u.sam, a.NewPassword ?? '');
+      log(4724, `${u.sam}: password reset`);
       return 'Password reset';
     }
     case 'group.addMember': ps(`Add-ADGroupMember -Identity ${q(a.Group)} -Members ${q(a.Identity)}`); return 'Added';

@@ -5,7 +5,11 @@
  */
 import { S, evidence, lab, log, nowIso, ps, q, save, toast } from '../corp.ts';
 import { fmtDate, h, svg } from '../dom.ts';
-import { I } from '../ui.ts';
+import { I, dialog, menubar, type MenuItem } from '../ui.ts';
+
+const G = globalThis as any;
+const closeTool = (id: string): void => G.CorpDesk?.closeApp?.(id);
+const about = (title: string, text: string): void => dialog(title, h('p', null, text), [['OK', () => undefined, 'primary']]);
 import { registerTool } from '../host.ts';
 
 const MORE = [
@@ -40,6 +44,7 @@ export function ensureServices(): void {
 }
 
 let selService: string | null = null;
+let standardView = false;
 function servicesView(host: HTMLElement): void {
   ensureServices();
   const list = [...S().services].sort((a: any, b: any) => a.DisplayName.localeCompare(b.DisplayName));
@@ -50,20 +55,27 @@ function servicesView(host: HTMLElement): void {
   };
   const tb = (icon: string, title: string, fn: () => void, disabled: boolean): HTMLElement => h('button', { class: 'svc-tb', type: 'button', title, 'aria-label': title, disabled, onClick: fn }, svg(icon, 14));
   const PLAY = '<path d="M7 5l12 7-12 7z" fill="#2c9a3c"/>', STOP = '<rect x="6" y="6" width="12" height="12" fill="#333"/>', RESTART = '<path d="M19 12a7 7 0 1 1-2.1-5" fill="none" stroke="#2c9a3c" stroke-width="2.2"/><path d="M17.5 3v4.2h-4.2" fill="none" stroke="#2c9a3c" stroke-width="2.2"/>';
+  const props = (): void => { if (!sel) return; dialog(`${sel.DisplayName} Properties (Local Computer)`, h('dl', { class: 'ad2-kv' }, h('dt', null, 'Service name'), h('dd', null, sel.Name), h('dt', null, 'Display name'), h('dd', null, sel.DisplayName), h('dt', null, 'Description'), h('dd', null, INFO[sel.Name]?.[0] ?? ''), h('dt', null, 'Startup type'), h('dd', null, INFO[sel.Name]?.[1] ?? 'Manual'), h('dt', null, 'Log on as'), h('dd', null, INFO[sel.Name]?.[2] ?? 'Local System'), h('dt', null, 'Service status'), h('dd', null, sel.Status)), [['OK', () => undefined, 'primary']]); };
+  const menus: [string, () => MenuItem[]][] = [
+    ['File', () => [{ label: 'Exit', action: () => closeTool('services') }]],
+    ['Action', () => [{ label: 'Start', disabled: !sel || sel.Status === 'Running', action: () => act('Start') }, { label: 'Stop', disabled: !sel || sel.Status !== 'Running', action: () => act('Stop') }, { label: 'Restart', disabled: !sel || sel.Status !== 'Running', action: () => act('Restart') }, '-', { label: 'Refresh', shortcut: 'F5', action: () => save() }, '-', { label: 'Properties', disabled: !sel, action: props }]],
+    ['View', () => [{ label: 'Extended', checked: !standardView, action: () => { standardView = false; save(); } }, { label: 'Standard', checked: standardView, action: () => { standardView = true; save(); } }, '-', { label: 'Refresh', shortcut: 'F5', action: () => save() }]],
+    ['Help', () => [{ label: 'Help Topics', action: () => about('Services help', 'Services lists the Windows services on this computer. Select one to start, stop or restart it, or open Properties for its description and startup type. The same services are in PowerShell: Get-Service, Start-Service, Restart-Service.') }, { label: 'About Services', action: () => about('About Services', 'Services (services.msc), Microsoft Management Console snap-in. CORP Desk training edition.') }]],
+  ];
   host.append(h('div', { class: 'svc' },
-    h('div', { class: 'svc-menu' }, ['File', 'Action', 'View', 'Help'].map((m) => h('span', null, m))),
+    menubar('svc-menu', menus),
     h('div', { class: 'svc-toolbar' }, tb(PLAY, 'Start Service', () => act('Start'), !sel || sel.Status === 'Running'), tb(STOP, 'Stop Service', () => act('Stop'), !sel || sel.Status !== 'Running'), tb(RESTART, 'Restart Service', () => act('Restart'), !sel || sel.Status !== 'Running')),
     h('div', { class: 'svc-main' },
       h('aside', { class: 'svc-tree' }, h('div', { class: 'svc-node' }, 'Services (Local)')),
-      h('section', { class: 'svc-desc' }, sel ? [h('h3', null, sel.DisplayName),
+      standardView ? null : h('section', { class: 'svc-desc' }, sel ? [h('h3', null, sel.DisplayName),
         sel.Status === 'Running' ? h('p', null, h('a', { href: '#', onClick: (e: Event) => { e.preventDefault(); act('Stop'); } }, 'Stop'), ' the service', h('br'), h('a', { href: '#', onClick: (e: Event) => { e.preventDefault(); act('Restart'); } }, 'Restart'), ' the service')
           : h('p', null, h('a', { href: '#', onClick: (e: Event) => { e.preventDefault(); act('Start'); } }, 'Start'), ' the service'),
         h('p', null, h('b', null, 'Description:'), h('br'), INFO[sel.Name]?.[0] ?? '')] : h('p', null, 'Select an item to view its description.')),
       h('div', { class: 'svc-list', 'data-scroll': 'svc' }, h('table', null,
         h('thead', null, h('tr', null, ['Name', 'Description', 'Status', 'Startup Type', 'Log On As'].map((c) => h('th', null, c)))),
-        h('tbody', null, list.map((x: any) => h('tr', { class: x.Name === selService ? 'on' : '', tabindex: '0', onClick: () => { selService = x.Name; save(); }, onDblclick: () => { selService = x.Name; save(); } },
+        h('tbody', null, list.map((x: any) => h('tr', { class: x.Name === selService ? 'on' : '', tabindex: '0', onClick: () => { selService = x.Name; save(); }, onDblclick: () => { selService = x.Name; save(); setTimeout(props, 0); } },
           h('td', null, x.DisplayName), h('td', null, (INFO[x.Name]?.[0] ?? '').slice(0, 48) + ((INFO[x.Name]?.[0] ?? '').length > 48 ? '…' : '')), h('td', null, x.Status === 'Running' ? 'Running' : ''), h('td', null, INFO[x.Name]?.[1] ?? 'Manual'), h('td', null, INFO[x.Name]?.[2] ?? 'Local System'))))))),
-    h('div', { class: 'svc-tabs' }, h('span', { class: 'on' }, 'Extended'), h('span', null, 'Standard'))));
+    h('div', { class: 'svc-tabs' }, h('button', { class: standardView ? '' : 'on', type: 'button', onClick: () => { standardView = false; save(); } }, 'Extended'), h('button', { class: standardView ? 'on' : '', type: 'button', onClick: () => { standardView = true; save(); } }, 'Standard'))));
 }
 
 registerTool({
@@ -104,8 +116,15 @@ function printView(host: HTMLElement): void {
   const sel = L.printers.find((p) => p.name === selPrinter);
   const jobs = sel ? L.jobs.filter((j) => j.printer === sel.name) : [];
   const node = (label: string, f: typeof filter, depth: number): HTMLElement => h('button', { class: `pm-node ${filter === f ? 'on' : ''}`, type: 'button', style: `padding-left:${8 + depth * 14}px`, onClick: () => { filter = f; save(); } }, svg(f === 'all' ? I.printer : I.flag, 14), label);
+  const cancelAll = (): void => { if (!sel) return; const n = L.jobs.filter((j) => j.printer === sel.name).length; if (!n) { toast('There are no documents in this queue.'); return; } dialog('Cancel All Jobs', h('p', null, `Cancel all ${n} document(s) on ${sel.name}? Their owners will have to print them again. Prefer cancelling only the job that is in error.`), [['Yes', () => { if (L.jobs.some((j) => j.printer === sel.name && j.status === 'Error - Printing')) evidence('print-queue'); L.jobs = L.jobs.filter((j) => j.printer !== sel.name); log(13, `All print jobs on ${sel.name} cancelled`); save(); }, 'primary'], ['No', () => undefined]]); };
+  const menus: [string, () => MenuItem[]][] = [
+    ['File', () => [{ label: 'Exit', action: () => closeTool('printmgmt') }]],
+    ['Action', () => [{ label: 'Open Printer Queue', disabled: !sel, action: () => { evidence('print-queue-view'); save(); } }, { label: 'Print Test Page', disabled: !sel, action: () => { if (sel) printTestPage(sel.name); } }, { label: 'Cancel All Jobs', disabled: !sel, action: cancelAll }, '-', { label: 'Refresh', shortcut: 'F5', action: () => save() }, '-', { label: 'Properties', disabled: !sel, action: () => { if (sel) dialog(`${sel.name} Properties`, h('dl', { class: 'ad2-kv' }, h('dt', null, 'Location'), h('dd', null, sel.location), h('dt', null, 'Driver'), h('dd', null, sel.driver), h('dt', null, 'Port'), h('dd', null, sel.port), h('dt', null, 'Queue status'), h('dd', null, queueStatus(sel.name))), [['OK', () => undefined, 'primary']]); } }]],
+    ['View', () => [{ label: 'All Printers', checked: filter === 'all', action: () => { filter = 'all'; save(); } }, { label: 'Printers Not Ready', checked: filter === 'notready', action: () => { filter = 'notready'; save(); } }, { label: 'Printers With Jobs', checked: filter === 'jobs', action: () => { filter = 'jobs'; save(); } }]],
+    ['Help', () => [{ label: 'Help Topics', action: () => about('Print Management help', 'Select a printer to open its queue. A job in "Error - Printing" at the top blocks every job behind it: cancel that job, then print a test page. If the queue shows Offline, start the Print Spooler in Services. PowerShell: Get-Printer, Get-PrintJob, Remove-PrintJob.') }, { label: 'About Print Management', action: () => about('About Print Management', 'Print Management (printmanagement.msc), Microsoft Management Console snap-in. CORP Desk training edition.') }]],
+  ];
   host.append(h('div', { class: 'svc pm' },
-    h('div', { class: 'svc-menu' }, ['File', 'Action', 'View', 'Help'].map((m) => h('span', null, m))),
+    menubar('svc-menu', menus),
     h('div', { class: 'svc-main' },
       h('aside', { class: 'svc-tree' }, h('div', { class: 'svc-node' }, 'Print Management'), h('div', { class: 'svc-node', style: 'padding-left:18px' }, 'Custom Filters'),
         node('Printers Not Ready', 'notready', 2), node('Printers With Jobs', 'jobs', 2), h('div', { class: 'svc-node', style: 'padding-left:18px' }, 'Print Servers'), h('div', { class: 'svc-node', style: 'padding-left:32px' }, 'LAB-DC01 (local)'), node('Printers', 'all', 3)),

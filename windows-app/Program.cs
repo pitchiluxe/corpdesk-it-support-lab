@@ -51,7 +51,7 @@ internal sealed class LabWindow : Form
         if(url.origin!==location.origin||!url.pathname.startsWith('/api/'))return originalFetch(input,options);
         return new Promise((resolve,reject)=>{const id=++sequence;const timeout=setTimeout(()=>{pending.delete(id);reject(new Error('Native request timed out'));},90000);
           pending.set(id,reply=>{clearTimeout(timeout);resolve(new Response(JSON.stringify(reply.body),{status:reply.status,headers:{'Content-Type':'application/json'}}));});
-          window.chrome.webview.postMessage({action:'apiRequest',id,path:url.pathname,body:options.body||null});});};
+          window.chrome.webview.postMessage({action:'apiRequest',id,path:url.pathname+url.search,body:options.body||null});});};
     })();
     """;
     private readonly LocalServices host;private readonly WebView2 web=new(){Dock=DockStyle.Fill};
@@ -88,7 +88,18 @@ internal sealed class LabWindow : Form
             // Website links on the app's own pages never leave the app: they open as tabs of the lab's Chrome window.
             web.CoreWebView2.NavigationStarting+=(_,e)=>{if(!e.Uri.StartsWith(host.Origin+"/",StringComparison.Ordinal)&&!e.Uri.StartsWith("about:",StringComparison.Ordinal)){e.Cancel=true;_=OpenInLab(e.Uri);}};
             web.CoreWebView2.NewWindowRequested+=(_,e)=>{e.Handled=true;_=OpenInLab(e.Uri);};
-            web.CoreWebView2.PermissionRequested+=(_,e)=>e.State=CoreWebView2PermissionState.Deny;
+            // Screen Pen recordings may narrate with the microphone and show the camera bubble: ask, every time. Everything else stays denied.
+            web.CoreWebView2.PermissionRequested+=(_,e)=>{
+                if(e.PermissionKind is CoreWebView2PermissionKind.Microphone or CoreWebView2PermissionKind.Camera&&e.Uri.StartsWith(host.Origin+"/",StringComparison.Ordinal))
+                    e.State=MessageBox.Show(this,"Screen Pen wants to use your "+(e.PermissionKind==CoreWebView2PermissionKind.Camera?"camera":"microphone")+" for a recording. Allow?","CORP Desk",MessageBoxButtons.YesNo,MessageBoxIcon.Question)==DialogResult.Yes?CoreWebView2PermissionState.Allow:CoreWebView2PermissionState.Deny;
+                else e.State=CoreWebView2PermissionState.Deny;
+            };
+            // The taskbar's full-screen button (and F11): the window itself goes borderless and covers the screen, and comes back.
+            FormBorderStyle savedBorder=FormBorderStyle;FormWindowState savedState=WindowState;
+            web.CoreWebView2.ContainsFullScreenElementChanged+=(_,_)=>{
+                if(web.CoreWebView2.ContainsFullScreenElement){savedBorder=FormBorderStyle;savedState=WindowState;FormBorderStyle=FormBorderStyle.None;WindowState=FormWindowState.Normal;WindowState=FormWindowState.Maximized;}
+                else{FormBorderStyle=savedBorder;WindowState=savedState;}
+            };
             web.CoreWebView2.NavigationCompleted+=async(_,_)=>await UpdateOllama();
             web.Source=new Uri(host.Origin+"/index.html");poll.Start();
         }catch(Exception ex){MessageBox.Show(this,"The desktop could not load.\n\n"+ex.Message,"CORP Desk",MessageBoxButtons.OK,MessageBoxIcon.Error);}

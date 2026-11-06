@@ -685,6 +685,7 @@
           u.accountOptions.mustChange = a.ChangePasswordAtLogon === void 0 ? true : bool(a.ChangePasswordAtLogon);
           if (a.AccountPassword) {
             u.passwordLastSet = (/* @__PURE__ */ new Date()).toISOString();
+            globalThis.CorpDesk?.setLabPassword?.(u.sam, a.AccountPassword);
           }
         }
         return `Created ${a.SamAccountName}`;
@@ -719,7 +720,8 @@
         u.accountOptions || (u.accountOptions = {});
         u.accountOptions.mustChange = a.ChangePasswordAtLogon === void 0 ? true : bool(a.ChangePasswordAtLogon);
         u.passwordLastSet = (/* @__PURE__ */ new Date()).toISOString();
-        log(4724, `${u.sam}: password-reset workflow completed (no password stored)`);
+        globalThis.CorpDesk?.setLabPassword?.(u.sam, a.NewPassword ?? "");
+        log(4724, `${u.sam}: password reset`);
         return "Password reset";
       }
       case "group.addMember":
